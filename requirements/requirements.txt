@@ -1,0 +1,25 @@
+# Core app utilities (models/config/logging)
+pydantic
+python-dotenv
+rich
+
+# Testing
+pytest
+
+# PDF parsing
+pypdf
+pdfplumber
+
+# MySQL driver
+mysql-connector-python
+
+# MCP Python SDK
+mcp[cli]
+
+# ImGui UI stack (GLFW + OpenGL)
+imgui[glfw]
+glfw
+PyOpenGL
+
+# LLM client (Claude / Anthropic API)
+anthropic
