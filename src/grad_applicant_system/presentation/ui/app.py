@@ -4,6 +4,7 @@ from grad_applicant_system.infrastructure.assistant import (
     FakeApplicantAssistantService,
 )
 from grad_applicant_system.presentation.ui.panes.search_pane import SearchPane
+from grad_applicant_system.presentation.ui.panes.transcript_pane import TranscriptPane
 from grad_applicant_system.presentation.ui.viewmodels.search_pane_viewmodel import (
     SearchPaneViewModel,
 )
@@ -25,8 +26,14 @@ class App:
     def _build_main_view(self) -> MainView:
         assistant_service = FakeApplicantAssistantService()
         search_pane_viewmodel = SearchPaneViewModel(assistant_service)
+
+        transcript_pane = TranscriptPane(search_pane_viewmodel)
         search_pane = SearchPane(search_pane_viewmodel)
-        return MainView(search_pane)
+
+        return MainView(
+            transcript_pane=transcript_pane,
+            search_pane=search_pane,
+        )
 
     def draw_frame(self) -> bool:
         self._main_view.render()
