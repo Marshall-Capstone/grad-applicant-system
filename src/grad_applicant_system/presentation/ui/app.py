@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from grad_applicant_system.infrastructure.assistant import (
+    FakeApplicantAssistantService,
+)
 from grad_applicant_system.presentation.ui.panes.search_pane import SearchPane
 from grad_applicant_system.presentation.ui.viewmodels.search_pane_viewmodel import (
     SearchPaneViewModel,
@@ -17,11 +20,11 @@ class App:
             width=1280,
             height=720,
         )
-
         self._main_view = self._build_main_view()
 
     def _build_main_view(self) -> MainView:
-        search_pane_viewmodel = SearchPaneViewModel()
+        assistant_service = FakeApplicantAssistantService()
+        search_pane_viewmodel = SearchPaneViewModel(assistant_service)
         search_pane = SearchPane(search_pane_viewmodel)
         return MainView(search_pane)
 

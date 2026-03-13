@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from grad_applicant_system.presentation.ui.panes import BasePane
+from .base_pane import BasePane
 from grad_applicant_system.presentation.ui.viewmodels.search_pane_viewmodel import (
     SearchPaneViewModel,
 )
@@ -13,22 +13,22 @@ from grad_applicant_system.presentation.ui.widgets import (
 
 
 class SearchPane(BasePane):
-    """Pane for entering a search query and triggering a search action."""
+    """Pane for entering a user message and sending it to the assistant."""
 
     def __init__(self, viewmodel: SearchPaneViewModel) -> None:
         super().__init__()
         self._viewmodel = viewmodel
 
-        self._title_widget = TextWidget("Applicant Search")
+        self._title_widget = TextWidget("Applicant Assistant")
         self._separator_widget = SeparatorWidget()
         self._query_input_widget = TextInputWidget(
-            label="Query",
+            label="Message",
             text=self._viewmodel.query_text,
             on_change=self._viewmodel.set_query_text,
         )
         self._search_button_widget = ButtonWidget(
-            label="Search",
-            on_click=self._viewmodel.submit_search,
+            label="Send",
+            on_click=self._viewmodel.submit_message,
         )
         self._status_widget = TextWidget(self._viewmodel.status_text)
 
