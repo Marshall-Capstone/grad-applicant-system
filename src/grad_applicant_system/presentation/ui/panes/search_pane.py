@@ -26,7 +26,7 @@ class SearchPane(BasePane):
             text=self._viewmodel.query_text,
             on_change=self._viewmodel.set_query_text,
         )
-        self._search_button_widget = ButtonWidget(
+        self._send_button_widget = ButtonWidget(
             label="Send",
             on_click=self._viewmodel.submit_message,
         )
@@ -37,11 +37,14 @@ class SearchPane(BasePane):
                 self._title_widget,
                 self._separator_widget,
                 self._query_input_widget,
-                self._search_button_widget,
+                self._send_button_widget,
                 self._status_widget,
             ]
         )
 
     def render(self) -> None:
+        if self._query_input_widget.text != self._viewmodel.query_text:
+            self._query_input_widget.set_text(self._viewmodel.query_text)
+
         self._status_widget.set_text(self._viewmodel.status_text)
         self.render_widgets()
