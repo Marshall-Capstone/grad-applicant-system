@@ -16,10 +16,8 @@ mysql-connector-python
 # MCP Python SDK
 mcp[cli]
 
-# ImGui UI stack (GLFW + OpenGL)
-imgui[glfw]
-glfw
-PyOpenGL
+# ImGui UI stack
+py-imgui-redux==6.0.0
 
 # LLM client (Claude / Anthropic API)
 anthropic
