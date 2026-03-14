@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import imgui
+
 from .base_pane import BasePane
 from grad_applicant_system.presentation.ui.viewmodels.search_pane_viewmodel import (
     SearchPaneViewModel,
@@ -47,4 +49,16 @@ class SearchPane(BasePane):
             self._query_input_widget.set_text(self._viewmodel.query_text)
 
         self._status_widget.set_text(self._viewmodel.status_text)
-        self.render_widgets()
+
+        self._title_widget.render()
+        self._separator_widget.render()
+
+        imgui.BeginDisabled(self._viewmodel.is_busy)
+        self._query_input_widget.render()
+        imgui.EndDisabled()
+
+        imgui.BeginDisabled(not self._viewmodel.can_send)
+        self._send_button_widget.render()
+        imgui.EndDisabled()
+
+        self._status_widget.render()
