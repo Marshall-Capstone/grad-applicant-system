@@ -9,6 +9,7 @@ from grad_applicant_system.infrastructure.assistant import (
 from grad_applicant_system.infrastructure.mcp import McpToolClient
 from grad_applicant_system.presentation.ui.panes.search_pane import SearchPane
 from grad_applicant_system.presentation.ui.panes.transcript_pane import TranscriptPane
+from grad_applicant_system.presentation.ui.panes.top_menu_pane import TopMenuPane
 from grad_applicant_system.presentation.ui.viewmodels.search_pane_viewmodel import (
     SearchPaneViewModel,
 )
@@ -34,10 +35,12 @@ class App:
         search_pane_viewmodel = SearchPaneViewModel(assistant_service)
         self._search_pane_viewmodel = search_pane_viewmodel
 
+        top_menu_pane = TopMenuPane(search_pane_viewmodel)
         transcript_pane = TranscriptPane(search_pane_viewmodel)
         search_pane = SearchPane(search_pane_viewmodel)
 
         return MainView(
+            top_menu_pane=top_menu_pane,
             transcript_pane=transcript_pane,
             search_pane=search_pane,
         )

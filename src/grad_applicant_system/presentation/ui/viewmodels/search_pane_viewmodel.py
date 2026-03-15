@@ -65,6 +65,10 @@ class SearchPaneViewModel:
     @property
     def can_send(self) -> bool:
         return (not self._is_busy) and bool(self._query_text.strip())
+    
+    @property
+    def can_clear(self) -> bool:
+        return (not self._is_busy) and bool(self._transcript)
 
     @property
     def transcript(self) -> tuple[TranscriptEntry, ...]:
@@ -132,3 +136,14 @@ class SearchPaneViewModel:
             return
 
         self._worker_results.put(_WorkerSuccess(reply=reply))
+
+    def clear_conversation(self) -> None:
+        if self._is_busy:
+            self._status_text = "Please wait for the current response."
+            return
+
+        self._query_text = ""
+        self._status_text = "Enter a message and click Send."
+        self._last_reply = None
+        self._last_error = None
+        self._transcript.clear()
