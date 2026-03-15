@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from queue import Empty, Queue
+from threading import Thread
 
 from grad_applicant_system.application.ports import (
     ApplicantAssistantService,
@@ -14,6 +16,19 @@ class TranscriptEntry:
     text: str
 
 
+@dataclass(frozen=True)
+class _WorkerSuccess:
+    reply: AssistantReply
+
+
+@dataclass(frozen=True)
+class _WorkerFailure:
+    error_text: str
+
+
+_WorkerResult = _WorkerSuccess | _WorkerFailure
+
+
 class SearchPaneViewModel:
     """UI state and actions for the current input/send pane."""
 
@@ -25,6 +40,7 @@ class SearchPaneViewModel:
         self._last_error: str | None = None
         self._is_busy = False
         self._transcript: list[TranscriptEntry] = []
+        self._worker_results: Queue[_WorkerResult] = Queue()
 
     @property
     def query_text(self) -> str:
@@ -75,21 +91,44 @@ class SearchPaneViewModel:
         self._is_busy = True
         self._status_text = "Thinking..."
         self._transcript.append(TranscriptEntry(role="user", text=message))
+        self._query_text = ""
 
+        worker = Thread(
+            target=self._run_assistant_request,
+            args=(message,),
+            daemon=True,
+        )
+        worker.start()
+
+    def update(self) -> None:
+        """Poll for any finished background assistant result."""
+        try:
+            result = self._worker_results.get_nowait()
+        except Empty:
+            return
+
+        if isinstance(result, _WorkerFailure):
+            self._last_error = result.error_text
+            self._status_text = result.error_text
+            self._transcript.append(
+                TranscriptEntry(role="assistant", text=result.error_text)
+            )
+            self._is_busy = False
+            return
+
+        self._last_reply = result.reply
+        self._status_text = "Ready."
+        self._transcript.append(
+            TranscriptEntry(role="assistant", text=result.reply.assistant_message)
+        )
+        self._is_busy = False
+
+    def _run_assistant_request(self, message: str) -> None:
         try:
             reply = self._assistant_service.send_message(message)
         except Exception as exc:
             error_text = f"Assistant request failed: {exc}"
-            self._last_error = error_text
-            self._status_text = error_text
-            self._transcript.append(TranscriptEntry(role="assistant", text=error_text))
-            self._is_busy = False
+            self._worker_results.put(_WorkerFailure(error_text=error_text))
             return
 
-        self._last_reply = reply
-        self._status_text = "Ready."
-        self._transcript.append(
-            TranscriptEntry(role="assistant", text=reply.assistant_message)
-        )
-        self._query_text = ""
-        self._is_busy = False
+        self._worker_results.put(_WorkerSuccess(reply=reply))
