@@ -25,12 +25,15 @@ class App:
             width=1280,
             height=720,
         )
+        self._search_pane_viewmodel: SearchPaneViewModel | None = None
         self._main_view = self._build_main_view()
 
     def _build_main_view(self) -> MainView:
         assistant_service = self._build_assistant_service()
 
         search_pane_viewmodel = SearchPaneViewModel(assistant_service)
+        self._search_pane_viewmodel = search_pane_viewmodel
+
         transcript_pane = TranscriptPane(search_pane_viewmodel)
         search_pane = SearchPane(search_pane_viewmodel)
 
@@ -61,6 +64,9 @@ class App:
             return FakeApplicantAssistantService()
 
     def draw_frame(self) -> bool:
+        if self._search_pane_viewmodel is not None:
+            self._search_pane_viewmodel.update()
+
         self._main_view.render()
         return False
 
