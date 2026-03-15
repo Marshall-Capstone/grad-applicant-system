@@ -6,10 +6,6 @@ from .base_pane import BasePane
 from grad_applicant_system.presentation.ui.viewmodels.search_pane_viewmodel import (
     SearchPaneViewModel,
 )
-from grad_applicant_system.presentation.ui.widgets import (
-    SeparatorWidget,
-    TextWidget,
-)
 
 
 class TranscriptPane(BasePane):
@@ -20,15 +16,9 @@ class TranscriptPane(BasePane):
         self._viewmodel = viewmodel
         self._last_transcript_count = 0
 
-        self._title_widget = TextWidget("Transcript")
-        self._separator_widget = SeparatorWidget()
-
     def render(self) -> None:
         transcript = self._viewmodel.transcript
         transcript_count = len(transcript)
-
-        self._title_widget.render()
-        self._separator_widget.render()
 
         imgui.BeginChild("TranscriptScrollRegion", imgui.Vec2(0.0, 0.0))
 
@@ -38,7 +28,7 @@ class TranscriptPane(BasePane):
         )
 
         if not transcript:
-            imgui.Text("No messages yet.")
+            imgui.TextWrapped("Start a conversation to see messages here.")
         else:
             for index, entry in enumerate(transcript):
                 prefix = "You" if entry.role == "user" else "Assistant"
@@ -48,7 +38,7 @@ class TranscriptPane(BasePane):
                     imgui.SetScrollHereY(1.0)
 
                 if index < transcript_count - 1:
-                    imgui.Spacing()
+                    imgui.Dummy(imgui.Vec2(0.0, 10.0))
 
         imgui.EndChild()
         self._last_transcript_count = transcript_count
