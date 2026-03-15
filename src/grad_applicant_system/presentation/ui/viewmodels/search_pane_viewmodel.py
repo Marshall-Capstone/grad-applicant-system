@@ -35,7 +35,7 @@ class SearchPaneViewModel:
     def __init__(self, assistant_service: ApplicantAssistantService) -> None:
         self._assistant_service = assistant_service
         self._query_text = ""
-        self._status_text = "Enter a message and click Send."
+        self._status_text = ""
         self._last_reply: AssistantReply | None = None
         self._last_error: str | None = None
         self._is_busy = False
@@ -65,7 +65,7 @@ class SearchPaneViewModel:
     @property
     def can_send(self) -> bool:
         return (not self._is_busy) and bool(self._query_text.strip())
-    
+
     @property
     def can_clear(self) -> bool:
         return (not self._is_busy) and bool(self._transcript)
@@ -77,7 +77,12 @@ class SearchPaneViewModel:
     def set_query_text(self, text: str) -> None:
         if self._is_busy:
             return
+
         self._query_text = text
+
+        if text.strip():
+            self._status_text = ""
+            self._last_error = None
 
     def submit_message(self) -> None:
         if self._is_busy:
@@ -113,7 +118,7 @@ class SearchPaneViewModel:
 
         if isinstance(result, _WorkerFailure):
             self._last_error = result.error_text
-            self._status_text = result.error_text
+            self._status_text = "Assistant request failed."
             self._transcript.append(
                 TranscriptEntry(role="assistant", text=result.error_text)
             )
@@ -121,7 +126,8 @@ class SearchPaneViewModel:
             return
 
         self._last_reply = result.reply
-        self._status_text = "Ready."
+        self._last_error = None
+        self._status_text = ""
         self._transcript.append(
             TranscriptEntry(role="assistant", text=result.reply.assistant_message)
         )
@@ -143,7 +149,7 @@ class SearchPaneViewModel:
             return
 
         self._query_text = ""
-        self._status_text = "Enter a message and click Send."
+        self._status_text = ""
         self._last_reply = None
         self._last_error = None
         self._transcript.clear()
