@@ -22,7 +22,7 @@ class Window:
         self._glsl_version = glsl_version
 
         self._window = None
-        self._clear_color = im.Vec4(0.22, 0.22, 0.22, 1.0)
+        self._clear_color = im.Vec4(0.05, 0.06, 0.08, 1.0)
         self._initialized = False
 
     @property
