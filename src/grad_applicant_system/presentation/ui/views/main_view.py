@@ -21,8 +21,8 @@ class MainView(BaseView):
         self._top_menu_pane = top_menu_pane
         self._transcript_pane = transcript_pane
         self._search_pane = search_pane
-        self._panel_spacing = 16.0
-        self._composer_height = 170.0
+        self._panel_spacing = 14.0
+        self._composer_height = 132.0
 
     def render(self) -> None:
         self._top_menu_pane.render()
@@ -50,7 +50,7 @@ class MainView(BaseView):
 
         imgui.PushStyleVar(imgui.StyleVar.WindowRounding, 0.0)
         imgui.PushStyleVar(imgui.StyleVar.WindowBorderSize, 0.0)
-        imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.Vec2(24.0, 20.0))
+        imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.Vec2(22.0, 18.0))
         imgui.PushStyleColor(imgui.Col.WindowBg, imgui.Vec4(0.07, 0.09, 0.12, 1.0))
 
         began = imgui.Begin("MainShell", flags=window_flags)
@@ -58,9 +58,9 @@ class MainView(BaseView):
 
         if should_render:
             available = imgui.GetContentRegionAvail()
-            composer_height = min(self._composer_height, max(140.0, available.y * 0.28))
+            composer_height = min(self._composer_height, max(118.0, available.y * 0.22))
             transcript_height = max(
-                160.0,
+                180.0,
                 available.y - composer_height - self._panel_spacing,
             )
 
@@ -68,6 +68,7 @@ class MainView(BaseView):
                 panel_id="TranscriptPanel",
                 pane=self._transcript_pane,
                 height=transcript_height,
+                padding=imgui.Vec2(18.0, 16.0),
             )
 
             imgui.Dummy(imgui.Vec2(0.0, self._panel_spacing))
@@ -76,15 +77,22 @@ class MainView(BaseView):
                 panel_id="ComposerPanel",
                 pane=self._search_pane,
                 height=0.0,
+                padding=imgui.Vec2(16.0, 14.0),
             )
 
         imgui.End()
         imgui.PopStyleColor(1)
         imgui.PopStyleVar(3)
 
-    def _render_panel(self, panel_id: str, pane, height: float) -> None:
-        imgui.PushStyleVar(imgui.StyleVar.ChildRounding, 18.0)
-        imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.Vec2(18.0, 16.0))
+    def _render_panel(
+        self,
+        panel_id: str,
+        pane,
+        height: float,
+        padding: imgui.Vec2,
+    ) -> None:
+        imgui.PushStyleVar(imgui.StyleVar.ChildRounding, 20.0)
+        imgui.PushStyleVar(imgui.StyleVar.WindowPadding, padding)
         imgui.PushStyleColor(imgui.Col.ChildBg, imgui.Vec4(0.11, 0.13, 0.17, 1.0))
 
         imgui.BeginChild(panel_id, imgui.Vec2(0.0, height))
