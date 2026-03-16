@@ -28,6 +28,12 @@ class SearchPane(BasePane):
             label="Send",
             on_click=self._viewmodel.submit_message,
             width=96.0,
+            height=40.0,
+            button_color=(0.18, 0.66, 0.43, 1.0),
+            button_hovered_color=(0.22, 0.73, 0.48, 1.0),
+            button_active_color=(0.14, 0.58, 0.37, 1.0),
+            text_color=(0.97, 0.99, 0.98, 1.0),
+            rounding=20.0,
         )
 
     def render(self) -> None:
