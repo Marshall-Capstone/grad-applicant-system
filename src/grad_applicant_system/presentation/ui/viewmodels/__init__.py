@@ -1,6 +1,6 @@
-from .search_pane_viewmodel import SearchPaneViewModel
+from .message_composer_viewmodel import MessageComposerViewModel
 
 __all__ = [
-    "SearchPaneViewModel",
+    "message_composer_viewmodel",
     "TranscriptEntry",
 ]
