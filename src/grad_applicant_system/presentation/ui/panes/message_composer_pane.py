@@ -50,7 +50,12 @@ class MessageComposerPane(BasePane):
             on_change=self._viewmodel.set_query_text,
             max_size=1024,
             multiline=True,
-        )
+            flags=(
+                imgui.InputTextFlags.EnterReturnsTrue
+                | imgui.InputTextFlags.CtrlEnterForNewLine
+                | imgui.InputTextFlags.NoHorizontalScroll),)
+
+        self._composer_placeholder_text = ("Ask about applicants, programs, GPA, or review status...")
 
         # Accent send button placed inside the composer capsule.
         # These values are primarily visual styling knobs.
@@ -174,12 +179,30 @@ class MessageComposerPane(BasePane):
 
         # Disable typing while the assistant is processing a request.
         imgui.BeginDisabled(self._viewmodel.is_busy)
-        self._query_input_widget.render()
+        input_activated = self._query_input_widget.render()
         imgui.EndDisabled()
+
+        input_is_focused = imgui.IsItemFocused()
+
+        if (not self._viewmodel.query_text.strip()) and (not input_is_focused):
+            self._draw_input_placeholder(
+                self._composer_placeholder_text,
+                x_padding=12.0,
+                y_padding=12.0,
+            )
 
         # Clean up input field styling.
         imgui.PopStyleColor(3)
         imgui.PopStyleVar(3)
+
+        should_submit_from_keyboard = (
+            input_activated
+            and self._viewmodel.can_send
+            and not self._viewmodel.is_busy
+        )
+
+        if should_submit_from_keyboard:
+            self._viewmodel.submit_message()
 
         # Compute send button position relative to the capsule.
         #
@@ -228,3 +251,20 @@ class MessageComposerPane(BasePane):
 
         imgui.TextWrapped(status_text)
         imgui.PopStyleColor(1)
+
+    def _draw_input_placeholder(self, text: str, *, x_padding: float, y_padding: float,) -> None:
+        """
+        Draw lightweight placeholder text over the empty multiline input.
+
+        Dear ImGui does not provide a native multiline "with hint" widget, so
+        this is rendered manually as an overlay when the input is empty and not
+        focused.
+        """
+        rect_min = imgui.GetItemRectMin()
+        draw_list = imgui.GetWindowDrawList()
+
+        draw_list.AddText(
+            imgui.Vec2(rect_min.x + x_padding, rect_min.y + y_padding),
+            imgui.GetColorU32(imgui.Vec4(0.52, 0.55, 0.60, 1.0)),
+            text,
+        )
