@@ -8,7 +8,7 @@ from .base_widget import BaseWidget
 
 
 class TextInputWidget(BaseWidget):
-    """Simple single-line text input widget."""
+    """Text input widget that can render as single-line or multiline."""
 
     def __init__(
         self,
@@ -16,10 +16,17 @@ class TextInputWidget(BaseWidget):
         text: str = "",
         on_change: Callable[[str], None] | None = None,
         max_size: int = 256,
+        *,
+        multiline: bool = False,
+        width: float = 0.0,
+        height: float = 0.0,
     ) -> None:
         self._label = label
         self._buffer = im.StrRef(text, maxSize=max_size)
         self._on_change = on_change
+        self._multiline = multiline
+        self._width = width
+        self._height = height
 
     @property
     def text(self) -> str:
@@ -31,7 +38,19 @@ class TextInputWidget(BaseWidget):
     def set_on_change(self, on_change: Callable[[str], None] | None) -> None:
         self._on_change = on_change
 
+    def set_size(self, width: float, height: float = 0.0) -> None:
+        self._width = width
+        self._height = height
+
     def render(self) -> None:
-        changed = im.InputText(self._label, self._buffer)
+        if self._multiline:
+            changed = im.InputTextMultiline(
+                self._label,
+                self._buffer,
+                im.Vec2(self._width, self._height),
+            )
+        else:
+            changed = im.InputText(self._label, self._buffer)
+
         if changed and self._on_change is not None:
             self._on_change(str(self._buffer))

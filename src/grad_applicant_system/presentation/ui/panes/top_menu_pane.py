@@ -3,15 +3,15 @@ from __future__ import annotations
 import imgui
 
 from .base_pane import BasePane
-from grad_applicant_system.presentation.ui.viewmodels.search_pane_viewmodel import (
-    SearchPaneViewModel,
+from grad_applicant_system.presentation.ui.viewmodels.message_composer_viewmodel import (
+    MessageComposerViewModel,
 )
 
 
 class TopMenuPane(BasePane):
     """Top application menu strip."""
 
-    def __init__(self, viewmodel: SearchPaneViewModel) -> None:
+    def __init__(self, viewmodel: MessageComposerViewModel) -> None:
         super().__init__()
         self._viewmodel = viewmodel
 
