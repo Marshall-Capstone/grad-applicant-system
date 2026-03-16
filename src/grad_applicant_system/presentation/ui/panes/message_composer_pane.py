@@ -57,11 +57,17 @@ class MessageComposerPane(BasePane):
 
         self._composer_placeholder_text = ("Ask about applicants, programs, GPA, or review status...")
 
+        # Request keyboard focus for the composer input.
+        #
+        # Start as True so the user can type immediately on first launch
+        # without clicking into the composer first.
+        self._should_focus_input = True
+
         # Accent send button placed inside the composer capsule.
         # These values are primarily visual styling knobs.
         self._send_button_widget = ButtonWidget(
         label="##SendButton",
-        on_click=self._viewmodel.submit_message,
+        on_click=self._submit_message,
         width=40.0,
         height=40.0,
         button_color=(0.18, 0.66, 0.43, 1.0),
@@ -177,6 +183,11 @@ class MessageComposerPane(BasePane):
         # In ImGui, SetCursorPos controls where the NEXT submitted widget appears.
         imgui.SetCursorPos(imgui.Vec2(inner_pad_x, inner_pad_y))
 
+        # When requested, restore focus to the input once the UI is idle again.
+        # SetKeyboardFocusHere applies to the next submitted widget.
+        if self._should_focus_input and not self._viewmodel.is_busy:
+            imgui.SetKeyboardFocusHere()
+
         # Disable typing while the assistant is processing a request.
         imgui.BeginDisabled(self._viewmodel.is_busy)
         input_activated = self._query_input_widget.render()
@@ -184,7 +195,14 @@ class MessageComposerPane(BasePane):
 
         input_is_focused = imgui.IsItemFocused()
 
-        if (not self._viewmodel.query_text.strip()) and (not input_is_focused):
+        # Once focus has actually landed on the input, clear the request.
+        if self._should_focus_input and input_is_focused:
+            self._should_focus_input = False
+
+        # Show the placeholder whenever the composer is empty and idle.
+        # This keeps the empty-state hint consistent for both click-send and
+        # Enter-send flows, even when the field is focused.
+        if (not self._viewmodel.is_busy) and (not self._viewmodel.query_text.strip()):
             self._draw_input_placeholder(
                 self._composer_placeholder_text,
                 x_padding=12.0,
@@ -202,7 +220,7 @@ class MessageComposerPane(BasePane):
         )
 
         if should_submit_from_keyboard:
-            self._viewmodel.submit_message()
+            self._submit_message()
 
         # Compute send button position relative to the capsule.
         #
@@ -221,8 +239,9 @@ class MessageComposerPane(BasePane):
         # is drawn at the desired anchored position inside the capsule.
         imgui.SetCursorPos(imgui.Vec2(button_x, button_y))
 
-        # Disable send when there is nothing valid to send.
-        imgui.BeginDisabled(not self._viewmodel.can_send)
+        # Keep the send button visually active whenever the UI is idle.
+        # Only mute it while an assistant response is in progress.
+        imgui.BeginDisabled(self._viewmodel.is_busy)
         self._send_button_widget.render()
         imgui.EndDisabled()
 
@@ -251,6 +270,17 @@ class MessageComposerPane(BasePane):
 
         imgui.TextWrapped(status_text)
         imgui.PopStyleColor(1)
+
+    def _submit_message(self) -> None:
+        """
+        Submit the current message and request that the composer input regain
+        focus when the UI becomes idle again.
+
+        This keeps the chat flow smooth across both mouse-click sends and
+        keyboard Enter sends.
+        """
+        self._viewmodel.submit_message()
+        self._should_focus_input = True
 
     def _draw_input_placeholder(self, text: str, *, x_padding: float, y_padding: float,) -> None:
         """
