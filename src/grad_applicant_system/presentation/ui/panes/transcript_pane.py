@@ -39,6 +39,7 @@ class TranscriptPane(BasePane):
         super().__init__()
         self._viewmodel = viewmodel
         self._last_transcript_count = 0
+        self._last_transcript_text_length = 0
 
     def render(self) -> None:
         """
@@ -59,6 +60,7 @@ class TranscriptPane(BasePane):
         """
         transcript = self._viewmodel.transcript
         transcript_count = len(transcript)
+        transcript_text_length = sum(len(entry.text) for entry in transcript)
 
         # Create a scrollable child region that fills the available transcript panel.
         # Width/height of 0.0 means "use all remaining available space".
@@ -73,9 +75,8 @@ class TranscriptPane(BasePane):
         # - and the user was already near the bottom
         #
         # This avoids disrupting the user if they intentionally scrolled upward.
-        should_auto_scroll = (
-            transcript_count > self._last_transcript_count and was_near_bottom
-        )
+        should_auto_scroll = ((transcript_count > self._last_transcript_count
+                or transcript_text_length > self._last_transcript_text_length) and was_near_bottom)
 
         if not transcript:
             # Empty-state placeholder shown before the first message is sent.
@@ -107,6 +108,7 @@ class TranscriptPane(BasePane):
         # Store the count from this frame so the next frame can detect whether
         # a new transcript entry has been appended.
         self._last_transcript_count = transcript_count
+        self._last_transcript_text_length = transcript_text_length
 
     def _is_near_bottom(self, threshold: float = 16.0) -> bool:
         """
