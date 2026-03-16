@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+import imgui
 
 from grad_applicant_system.application.ports import ApplicantAssistantService
 from grad_applicant_system.infrastructure.assistant import (
@@ -26,7 +28,34 @@ class App:
     def __init__(self) -> None:
         self._window = Window(title="Grad Applicant System", width=1280, height=720)
         self._message_composer_viewmodel: MessageComposerViewModel | None = None
+        #self._emblem_texture = self._load_emblem_texture()
+        self._emblem_texture = None
+        self._emblem_load_attempted = False
         self._main_view = self._build_main_view()
+
+    def _load_emblem_texture(self):
+        """
+        Load the shell emblem texture once at startup.
+
+        Returns None if the asset is missing or the texture load fails, so the
+        UI can continue running without the emblem.
+        """
+        asset_path = (
+            Path(__file__).resolve().parents[4]
+            / "assets"
+            / "ui"
+            / "emblem.png"
+        )
+
+        if not asset_path.exists():
+            print(f"Emblem asset not found: {asset_path}")
+            return None
+
+        try:
+            return imgui.LoadTextureFile(str(asset_path))
+        except Exception as exc:
+            print(f"Failed to load emblem texture: {exc}")
+            return None
 
     def _build_main_view(self) -> MainView:
         assistant_service = self._build_assistant_service()
@@ -38,7 +67,12 @@ class App:
         transcript_pane = TranscriptPane(message_composer_viewmodel)
         message_composer_pane = MessageComposerPane(message_composer_viewmodel)
 
-        return MainView(top_menu_pane=top_menu_pane, transcript_pane=transcript_pane, message_composer_pane=message_composer_pane)
+        return MainView(
+            top_menu_pane=top_menu_pane,
+            transcript_pane=transcript_pane,
+            message_composer_pane=message_composer_pane,
+            emblem_texture=self._emblem_texture,)
+        
 
     def _build_assistant_service(self) -> ApplicantAssistantService:
         use_real_assistant = (os.getenv("USE_REAL_ASSISTANT", "false").strip().lower() == "true")
@@ -57,6 +91,12 @@ class App:
             return FakeApplicantAssistantService()
 
     def draw_frame(self) -> bool:
+        if not self._emblem_load_attempted:
+            self._emblem_load_attempted = True
+            self._emblem_texture = self._load_emblem_texture()
+            if self._emblem_texture is not None:
+                self._main_view.set_emblem_texture(self._emblem_texture)
+
         if self._message_composer_viewmodel is not None:
             self._message_composer_viewmodel.update()
 

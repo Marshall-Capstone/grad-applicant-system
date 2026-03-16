@@ -33,6 +33,7 @@ class MainView(BaseView):
         top_menu_pane: TopMenuPane,
         transcript_pane: TranscriptPane,
         message_composer_pane: MessageComposerPane,
+        emblem_texture=None,
     ) -> None:
         """
         Initialize the main view with its major panes.
@@ -51,6 +52,9 @@ class MainView(BaseView):
         self._top_menu_pane = top_menu_pane
         self._transcript_pane = transcript_pane
         self._message_composer_pane = message_composer_pane
+        self._emblem_texture = emblem_texture
+        self._emblem_size = imgui.Vec2(120.0, 120.0)  #imgui.Vec2(84.0, 84.0)
+        self._emblem_offset = imgui.Vec2(0.0, 0.0)
 
         # Vertical spacing between the transcript panel and composer panel.
         self._panel_spacing = 14.0
@@ -76,6 +80,10 @@ class MainView(BaseView):
         # wide that it feels disproportionate relative to the centered composer.
         self._transcript_max_width = 980.0
         self._transcript_width_ratio = 0.92
+
+    def set_emblem_texture(self, emblem_texture) -> None:
+        """Attach or replace the shell emblem texture after view construction."""
+        self._emblem_texture = emblem_texture
 
     def render(self) -> None:
         """
@@ -151,6 +159,7 @@ class MainView(BaseView):
         should_render = began[0] if isinstance(began, tuple) else bool(began)
 
         if should_render:
+            self._render_shell_emblem()
             available = imgui.GetContentRegionAvail()
 
             # Compute the runtime composer height responsively.
@@ -212,6 +221,27 @@ class MainView(BaseView):
         imgui.End()
         imgui.PopStyleColor(1)
         imgui.PopStyleVar(3)
+
+    def _render_shell_emblem(self) -> None:
+        """
+        Draw the emblem in the upper-left area of the shell without affecting
+        the normal transcript/composer layout flow.
+        """
+        if self._emblem_texture is None:
+            return
+
+        original_cursor = imgui.GetCursorPos()
+
+        imgui.SetCursorPos(
+            imgui.Vec2(
+                original_cursor.x + self._emblem_offset.x,
+                original_cursor.y + self._emblem_offset.y,
+            )
+        )
+        imgui.Image(self._emblem_texture, self._emblem_size)
+
+        # Restore the original cursor so normal layout continues unchanged.
+        imgui.SetCursorPos(original_cursor)
 
     def _render_panel(
         self,
