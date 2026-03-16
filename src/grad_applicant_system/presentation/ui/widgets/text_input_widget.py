@@ -48,21 +48,25 @@ class TextInputWidget(BaseWidget):
         self._flags = flags
 
     def render(self) -> bool:
+        previous_text = str(self._buffer)
+
         if self._multiline:
-            changed = im.InputTextMultiline(
+            activated = im.InputTextMultiline(
                 self._label,
                 self._buffer,
                 im.Vec2(self._width, self._height),
                 self._flags,
             )
         else:
-            changed = im.InputText(
+            activated = im.InputText(
                 self._label,
                 self._buffer,
                 self._flags,
             )
 
-        if changed and self._on_change is not None:
-            self._on_change(str(self._buffer))
+        current_text = str(self._buffer)
 
-        return bool(changed)
+        if current_text != previous_text and self._on_change is not None:
+            self._on_change(current_text)
+
+        return bool(activated)
