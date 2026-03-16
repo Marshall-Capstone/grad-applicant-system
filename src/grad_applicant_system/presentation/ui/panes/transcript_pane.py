@@ -40,6 +40,11 @@ class TranscriptPane(BasePane):
         self._viewmodel = viewmodel
         self._last_transcript_count = 0
         self._last_transcript_text_length = 0
+        self._bubble_width_ratio = 0.72
+        self._bubble_min_width = 56.0
+        self._bubble_padding = imgui.Vec2(14.0, 10.0)
+        self._bubble_rounding = 16.0
+        self._bubble_gap = 10.0
 
     def render(self) -> None:
         """
@@ -83,25 +88,17 @@ class TranscriptPane(BasePane):
             imgui.TextWrapped("Start a conversation to see messages here.")
         else:
             for index, entry in enumerate(transcript):
-                # Translate the stored transcript role into a user-facing prefix.
-                prefix = "You" if entry.role == "user" else "Assistant"
-
-                # Render one transcript line.
-                # This is currently a simple text-based conversation display.
-                imgui.TextWrapped(f"{prefix}: {entry.text}")
+                self._render_message_bubble(index, entry.role, entry.text)
 
                 # If we decided to auto-scroll this frame, only do it when the
                 # final transcript item has been rendered.
-                #
-                # SetScrollHereY(1.0) means:
-                # "scroll so this item is visible, aligned near the bottom".
                 if should_auto_scroll and index == transcript_count - 1:
                     imgui.SetScrollHereY(1.0)
 
                 # Add vertical spacing between transcript entries, but not after
                 # the final message.
                 if index < transcript_count - 1:
-                    imgui.Dummy(imgui.Vec2(0.0, 10.0))
+                    imgui.Dummy(imgui.Vec2(0.0, self._bubble_gap))
 
         imgui.EndChild()
 
@@ -109,6 +106,77 @@ class TranscriptPane(BasePane):
         # a new transcript entry has been appended.
         self._last_transcript_count = transcript_count
         self._last_transcript_text_length = transcript_text_length
+
+    def _render_message_bubble(
+        self,
+        index: int,
+        role: str,
+        text: str,
+    ) -> None:
+        """
+        Render one transcript entry as a left/right aligned chat bubble.
+
+        user:
+            Right-aligned, slightly lighter bubble.
+
+        assistant:
+            Left-aligned, slightly darker bubble.
+        """
+        available_width = imgui.GetContentRegionAvail().x
+        start_x = imgui.GetCursorPosX()
+
+        max_bubble_width = max(
+            self._bubble_min_width,
+            available_width * self._bubble_width_ratio,
+        )
+
+        # For short messages, let the bubble shrink somewhat.
+        # For long messages, cap it and let TextWrapped handle line wrapping.
+        unwrapped_text_width = imgui.CalcTextSize(text).x if text else 0.0
+        bubble_width = min(
+            max_bubble_width,
+            max(
+                self._bubble_min_width,
+                unwrapped_text_width + (self._bubble_padding.x * 2.0),
+            ),
+        )
+
+        is_user = role == "user"
+
+        if is_user:
+            bubble_x = start_x + max(0.0, available_width - bubble_width)
+            bubble_bg = imgui.Vec4(0.18, 0.18, 0.18, 1.0)
+            border_color = imgui.Vec4(0.28, 0.28, 0.28, 1.0)
+            text_color = imgui.Vec4(0.95, 0.95, 0.95, 1.0)
+        else:
+            bubble_x = start_x
+            bubble_bg = imgui.Vec4(0.13, 0.13, 0.13, 1.0)
+            border_color = imgui.Vec4(0.22, 0.22, 0.22, 1.0)
+            text_color = imgui.Vec4(0.93, 0.93, 0.93, 1.0)
+
+        imgui.SetCursorPosX(bubble_x)
+
+        imgui.PushStyleVar(imgui.StyleVar.ChildRounding, self._bubble_rounding)
+        imgui.PushStyleVar(imgui.StyleVar.ChildBorderSize, 1.0)
+        imgui.PushStyleVar(imgui.StyleVar.WindowPadding, self._bubble_padding)
+
+        imgui.PushStyleColor(imgui.Col.ChildBg, bubble_bg)
+        imgui.PushStyleColor(imgui.Col.Border, border_color)
+        imgui.PushStyleColor(imgui.Col.Text, text_color)
+
+        imgui.BeginChild(
+            f"TranscriptBubble{index}",
+            imgui.Vec2(bubble_width, 0.0),
+            imgui.ChildFlags.Borders
+            | imgui.ChildFlags.AlwaysUseWindowPadding
+            | imgui.ChildFlags.AutoResizeY,
+            0,
+        )
+        imgui.TextWrapped(text)
+        imgui.EndChild()
+
+        imgui.PopStyleColor(3)
+        imgui.PopStyleVar(3)
 
     def _is_near_bottom(self, threshold: float = 16.0) -> bool:
         """
