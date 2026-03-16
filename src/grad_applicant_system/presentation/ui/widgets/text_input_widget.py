@@ -20,6 +20,7 @@ class TextInputWidget(BaseWidget):
         multiline: bool = False,
         width: float = 0.0,
         height: float = 0.0,
+        flags: int = 0,
     ) -> None:
         self._label = label
         self._buffer = im.StrRef(text, maxSize=max_size)
@@ -27,6 +28,7 @@ class TextInputWidget(BaseWidget):
         self._multiline = multiline
         self._width = width
         self._height = height
+        self._flags = flags
 
     @property
     def text(self) -> str:
@@ -42,15 +44,25 @@ class TextInputWidget(BaseWidget):
         self._width = width
         self._height = height
 
-    def render(self) -> None:
+    def set_flags(self, flags: int) -> None:
+        self._flags = flags
+
+    def render(self) -> bool:
         if self._multiline:
             changed = im.InputTextMultiline(
                 self._label,
                 self._buffer,
                 im.Vec2(self._width, self._height),
+                self._flags,
             )
         else:
-            changed = im.InputText(self._label, self._buffer)
+            changed = im.InputText(
+                self._label,
+                self._buffer,
+                self._flags,
+            )
 
         if changed and self._on_change is not None:
             self._on_change(str(self._buffer))
+
+        return bool(changed)
