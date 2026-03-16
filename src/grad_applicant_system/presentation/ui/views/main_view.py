@@ -145,7 +145,7 @@ class MainView(BaseView):
         imgui.PushStyleVar(imgui.StyleVar.WindowRounding, 0.0)
         imgui.PushStyleVar(imgui.StyleVar.WindowBorderSize, 0.0)
         imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.Vec2(22.0, 18.0))
-        imgui.PushStyleColor(imgui.Col.WindowBg, imgui.Vec4(0.07, 0.09, 0.12, 1.0))
+        imgui.PushStyleColor(imgui.Col.WindowBg, imgui.Vec4(0.1294, 0.1294, 0.1294, 1.0))
 
         began = imgui.Begin("MainShell", flags=window_flags)
         should_render = began[0] if isinstance(began, tuple) else bool(began)
@@ -247,7 +247,7 @@ class MainView(BaseView):
         # - dark card-like background
         imgui.PushStyleVar(imgui.StyleVar.ChildRounding, 20.0)
         imgui.PushStyleVar(imgui.StyleVar.WindowPadding, padding)
-        imgui.PushStyleColor(imgui.Col.ChildBg, imgui.Vec4(0.11, 0.13, 0.17, 1.0))
+        imgui.PushStyleColor(imgui.Col.ChildBg, imgui.Vec4(0.0941, 0.0941, 0.0941, 1.0))
 
         imgui.BeginChild(panel_id, imgui.Vec2(0.0, height))
         pane.render()
@@ -263,7 +263,7 @@ class MainView(BaseView):
         width: float,
         height: float,
         padding: imgui.Vec2,
-    ) -> None:
+        ) -> None:
         """
         Render a centered rounded panel with a constrained width.
 
@@ -278,15 +278,23 @@ class MainView(BaseView):
 
         # Shared card-like styling for the centered transcript panel.
         imgui.PushStyleVar(imgui.StyleVar.ChildRounding, 20.0)
+        imgui.PushStyleVar(imgui.StyleVar.ChildBorderSize, 1.0)
         imgui.PushStyleVar(imgui.StyleVar.WindowPadding, padding)
-        imgui.PushStyleColor(imgui.Col.ChildBg, imgui.Vec4(0.11, 0.13, 0.17, 1.0))
 
-        imgui.BeginChild(panel_id, imgui.Vec2(width, height), imgui.ChildFlags.AlwaysUseWindowPadding, 0,)
+        imgui.PushStyleColor(imgui.Col.ChildBg, imgui.Vec4(0.0941, 0.0941, 0.0941, 1.0))
+        imgui.PushStyleColor(imgui.Col.Border, imgui.Vec4(0.20, 0.20, 0.20, 1.0))
+
+        imgui.BeginChild(
+        panel_id,
+        imgui.Vec2(width, height),
+        imgui.ChildFlags.AlwaysUseWindowPadding | imgui.ChildFlags.Borders,
+        0,
+    )
         pane.render()
         imgui.EndChild()
 
-        imgui.PopStyleColor(1)
-        imgui.PopStyleVar(2)
+        imgui.PopStyleColor(2)
+        imgui.PopStyleVar(3)
 
     def _render_centered_pane(
         self,

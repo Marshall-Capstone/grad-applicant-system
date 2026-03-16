@@ -117,14 +117,23 @@ class MessageComposerPane(BasePane):
 
         # Style the outer composer capsule itself.
         # ChildRounding controls the rounded-capsule look.
+        # ChildBorderSize + Border color create a subtle trim.
         # WindowPadding is set to zero so we can fully control internal placement.
         imgui.PushStyleVar(imgui.StyleVar.ChildRounding, 22.0)
+        imgui.PushStyleVar(imgui.StyleVar.ChildBorderSize, 1.0)
         imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.Vec2(0.0, 0.0))
-        imgui.PushStyleColor(imgui.Col.ChildBg, imgui.Vec4(0.15, 0.16, 0.19, 1.0))
+
+        imgui.PushStyleColor(imgui.Col.ChildBg, imgui.Vec4(0.1882, 0.1882, 0.1882, 1.0))
+        imgui.PushStyleColor(imgui.Col.Border, imgui.Vec4(0.26, 0.26, 0.26, 1.0))
 
         # Create a dedicated child region to act as the unified composer surface.
         # Width 0.0 means "use all available width".
-        imgui.BeginChild("ComposerCapsule", imgui.Vec2(0.0, capsule_height))
+        imgui.BeginChild(
+            "ComposerCapsule",
+            imgui.Vec2(0.0, capsule_height),
+            imgui.ChildFlags.Borders,
+            0,
+        )
 
         # The available width inside the child determines how much room the
         # input gets after leaving space for the trailing send button.
@@ -155,9 +164,9 @@ class MessageComposerPane(BasePane):
         imgui.PushStyleVar(imgui.StyleVar.FramePadding, imgui.Vec2(10.0, 10.0))
         imgui.PushStyleVar(imgui.StyleVar.FrameBorderSize, 0.0)
 
-        imgui.PushStyleColor(imgui.Col.FrameBg, imgui.Vec4(0.15, 0.16, 0.19, 1.0))
-        imgui.PushStyleColor(imgui.Col.FrameBgHovered, imgui.Vec4(0.16, 0.17, 0.20, 1.0))
-        imgui.PushStyleColor(imgui.Col.FrameBgActive, imgui.Vec4(0.16, 0.17, 0.20, 1.0))
+        imgui.PushStyleColor(imgui.Col.FrameBg, imgui.Vec4(0.1882, 0.1882, 0.1882, 1.0))
+        imgui.PushStyleColor(imgui.Col.FrameBgHovered, imgui.Vec4(0.1882, 0.1882, 0.1882, 1.0))
+        imgui.PushStyleColor(imgui.Col.FrameBgActive, imgui.Vec4(0.1882, 0.1882, 0.1882, 1.0))
 
         # Manually place the input inside the capsule.
         # In ImGui, SetCursorPos controls where the NEXT submitted widget appears.
@@ -196,8 +205,8 @@ class MessageComposerPane(BasePane):
 
         # Close and clean up the outer capsule region.
         imgui.EndChild()
-        imgui.PopStyleColor(1)
-        imgui.PopStyleVar(2)
+        imgui.PopStyleColor(2)
+        imgui.PopStyleVar(3)
 
         # Short helper/status text shown underneath the composer.
         # Examples:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from queue import Empty, Queue
 from threading import Thread
+from time import perf_counter
 
 from grad_applicant_system.application.ports import (
     ApplicantAssistantService,
@@ -118,6 +119,21 @@ class MessageComposerViewModel:
 
         # Thread-safe queue used to hand results from worker thread -> UI thread.
         self._worker_results: Queue[_WorkerResult] = Queue()
+
+        # Typewriter-reveal state for assistant responses.
+        #
+        # First slice design:
+        # - the full assistant response still arrives all at once
+        # - the ViewModel reveals it gradually over subsequent frames
+        # - the UI remains responsive because reveal happens in update()
+        self._reveal_chars_per_second = 90.0
+        self._active_reveal_text: str | None = None
+        self._active_reveal_entry_index: int | None = None
+        self._revealed_char_count = 0
+        self._reveal_char_budget = 0.0
+
+        # Used to measure per-frame elapsed time for reveal pacing.
+        self._last_update_time = perf_counter()
 
     @property
     def query_text(self) -> str:
@@ -255,7 +271,8 @@ class MessageComposerViewModel:
 
     def update(self) -> None:
         """
-        Poll for any finished background assistant result.
+        Advance any active assistant typewriter reveal and apply a finished
+        background worker result, if one is available.
 
         This should be called once per frame by the App.
 
@@ -263,38 +280,119 @@ class MessageComposerViewModel:
         - The worker thread performs the blocking assistant request.
         - The worker thread does NOT directly mutate UI-facing state.
         - Instead, it places either success/failure into a queue.
-        - This method consumes at most one queued result and updates the
-          ViewModel safely from the normal UI update flow.
+        - This method consumes any finished result and also advances the
+          assistant typewriter effect using frame-to-frame elapsed time.
+        """
+        now = perf_counter()
+        delta_seconds = now - self._last_update_time
+        self._last_update_time = now
+
+        self._apply_finished_worker_result()
+        self._advance_active_reveal(delta_seconds)
+
+    def _apply_finished_worker_result(self) -> None:
+        """
+        Consume at most one finished worker result from the queue.
+
+        Success behavior for the current slice:
+        - store the full assistant reply immediately
+        - append an empty assistant transcript entry
+        - begin gradually revealing the reply text into that entry
+
+        Failure behavior:
+        - append the failure message immediately
+        - release busy state so the user can continue
         """
         try:
             result = self._worker_results.get_nowait()
         except Empty:
-            # No completed background result yet.
             return
 
         if isinstance(result, _WorkerFailure):
-            # Record failure state for the UI.
             self._last_error = result.error_text
             self._status_text = "Assistant request failed."
-
-            # Show the failure in the transcript as an assistant-side message.
             self._transcript.append(
                 TranscriptEntry(role="assistant", text=result.error_text)
             )
-
-            # Release busy state so the user can type/send again.
             self._is_busy = False
             return
 
-        # Success path: store the full reply object and append the assistant's
-        # message text into the transcript history.
         self._last_reply = result.reply
         self._last_error = None
-        self._status_text = ""
-        self._transcript.append(
-            TranscriptEntry(role="assistant", text=result.reply.assistant_message)
+
+        assistant_text = result.reply.assistant_message
+
+        # Start a gradual reveal instead of appending the full text at once.
+        self._transcript.append(TranscriptEntry(role="assistant", text=""))
+        self._active_reveal_text = assistant_text
+        self._active_reveal_entry_index = len(self._transcript) - 1
+        self._revealed_char_count = 0
+        self._reveal_char_budget = 0.0
+
+        # Keep the UI locked during the reveal for this first slice.
+        # We can relax this later if desired.
+        self._status_text = "Typing..."
+
+        # Edge case: empty assistant message.
+        if not assistant_text:
+            self._finish_active_reveal()
+
+    def _advance_active_reveal(self, delta_seconds: float) -> None:
+        """
+        Reveal more of the active assistant message based on elapsed time.
+
+        delta_seconds:
+            Seconds elapsed since the previous UI update frame.
+        """
+        if self._active_reveal_text is None:
+            return
+
+        if self._active_reveal_entry_index is None:
+            return
+
+        self._reveal_char_budget += (
+            max(delta_seconds, 0.0) * self._reveal_chars_per_second
         )
-        self._is_busy = False
+
+        chars_to_add = int(self._reveal_char_budget)
+        if chars_to_add <= 0:
+            return
+
+        self._reveal_char_budget -= chars_to_add
+        self._revealed_char_count = min(
+            self._revealed_char_count + chars_to_add,
+            len(self._active_reveal_text),
+        )
+
+        visible_text = self._active_reveal_text[: self._revealed_char_count]
+        self._transcript[self._active_reveal_entry_index] = TranscriptEntry(
+            role="assistant",
+            text=visible_text,
+        )
+
+        if self._revealed_char_count >= len(self._active_reveal_text):
+            self._finish_active_reveal()
+
+    def _finish_active_reveal(self) -> None:
+        """
+        Finalize the current assistant typewriter reveal and release busy state.
+        """
+        if (
+            self._active_reveal_text is not None
+            and self._active_reveal_entry_index is not None
+        ):
+            self._transcript[self._active_reveal_entry_index] = TranscriptEntry(
+                role="assistant",
+                text=self._active_reveal_text,
+            )
+
+        self._active_reveal_text = None
+        self._active_reveal_entry_index = None
+        self._revealed_char_count = 0
+        self._reveal_char_budget = 0.0
+
+        self._status_text = ""
+        self._is_busy = False        
 
     def _run_assistant_request(self, message: str) -> None:
         """
@@ -333,3 +431,7 @@ class MessageComposerViewModel:
         self._last_reply = None
         self._last_error = None
         self._transcript.clear()
+        self._active_reveal_text = None
+        self._active_reveal_entry_index = None
+        self._revealed_char_count = 0
+        self._reveal_char_budget = 0.0
