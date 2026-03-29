@@ -10,9 +10,16 @@ import mysql.connector
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
+from grad_applicant_system.infrastructure.parsing import (
+    PDFDocumentParser,
+    SimpleExtractionProcessor,
+)
+
 
 mcp = FastMCP("Capstone Sandbox", stateless_http=True, json_response=True)
 
+parser = PDFDocumentParser()
+extractor = SimpleExtractionProcessor()
 
 def _load_env() -> None:
     """Allow running this file directly (outside run.py) while still using .env."""
@@ -106,6 +113,29 @@ def get_applicant_by_email(email: str) -> dict[str, Any]:
             conn.close()
         except Exception:
             pass
+
+
+@mcp.tool()
+def ingest_pdf(file_path: str) -> dict:
+    """
+    Ingest a PDF, extract structured applicant data
+    """
+
+    try:
+        text = parser.extract_text(file_path)
+        data = extractor.extract(text)
+
+        return {
+            "status": "success",
+            "file": file_path,
+            "data": data
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
 
 
 def serve() -> None:

@@ -435,3 +435,64 @@ class MessageComposerViewModel:
         self._active_reveal_entry_index = None
         self._revealed_char_count = 0
         self._reveal_char_budget = 0.0
+
+    def ingest_pdf(self, file_path: str) -> None:
+        """
+        Ingest a PDF file, extract text and structured fields, and append
+        a summary to the transcript.
+
+        This method is defensive and performs work synchronously on the UI
+        thread. It catches and surfaces any errors as a transcript entry
+        rather than raising.
+        """
+        if self._is_busy:
+            self._status_text = "Please wait for the current response."
+            return
+
+        if not file_path:
+            self._status_text = "No file selected."
+            return
+
+        # Show lightweight feedback
+        self._status_text = "Processing PDF..."
+
+        try:
+            # Local imports to avoid hard dependency at module import time
+            from grad_applicant_system.infrastructure.parsing.pdf_document_parser import (
+                PDFDocumentParser,
+            )
+            from grad_applicant_system.infrastructure.parsing.simple_extraction_processor import (
+                SimpleExtractionProcessor,
+            )
+
+            parser = PDFDocumentParser()
+            extractor = SimpleExtractionProcessor()
+
+            text = parser.extract_text(file_path) or ""
+            data = extractor.extract(text)
+
+            # Append a transcript summary with the parsed fields
+            summary_lines = [f"Uploaded: {file_path}"]
+            if data.get("name"):
+                summary_lines.append(f"Name: {data['name']}")
+            if data.get("email"):
+                summary_lines.append(f"Email: {data['email']}")
+            if data.get("gpa"):
+                summary_lines.append(f"GPA: {data['gpa']}")
+            if not (data.get("name") or data.get("email") or data.get("gpa")):
+                # Fallback: include a text excerpt if structured fields missing
+                excerpt = (text or "").strip().replace("\n", " ")[:400]
+                if excerpt:
+                    summary_lines.append(f"Excerpt: {excerpt}")
+                else:
+                    summary_lines.append("No extractable content found.")
+
+            self._transcript.append(
+                TranscriptEntry(role="system", text="\n".join(summary_lines))
+            )
+            self._status_text = ""
+
+        except Exception as exc:
+            err = f"PDF ingestion failed: {exc}"
+            self._transcript.append(TranscriptEntry(role="system", text=err))
+            self._status_text = "PDF ingestion failed."

@@ -1,4 +1,5 @@
 import asyncio
+from xmlrpc import client
 
 from mcp import ClientSession, types
 from mcp.client.streamable_http import streamable_http_client
@@ -25,3 +26,11 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+result = client.call_tool(
+    "ingest_pdf",
+    {"file_path": "sample.pdf"}
+)
+
+print(result)

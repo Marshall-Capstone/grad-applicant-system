@@ -18,3 +18,7 @@ class ApplicantAssistantService(Protocol):
     def send_message(self, user_message: str) -> AssistantReply:
         """Send a user message and return the assistant's reply."""
         ...
+
+    def parse_applicant_pdf(self, file_path: str) -> dict:
+        """Parse an applicant PDF and return extracted applicant data."""
+        ...

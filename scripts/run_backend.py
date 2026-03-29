@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import time
+import shutil
 from pathlib import Path
 
 from scripts.docker_utils import compose_cmd, ensure_docker_running
@@ -67,7 +68,16 @@ def main() -> None:
     from dotenv import load_dotenv
     from grad_applicant_system.mcp.server import serve
 
-    load_dotenv(project_root / ".env")
+    # Ensure a .env exists for docker / app configuration. If the developer
+    # hasn't created one, copy the example so `docker compose` and later
+    # env lookups have sensible defaults.
+    env_path = project_root / ".env"
+    env_example = project_root / ".env.example"
+    if not env_path.exists() and env_example.exists():
+        shutil.copy(env_example, env_path)
+        print("Created .env from .env.example. Review/update secrets as needed.")
+
+    load_dotenv(env_path)
 
     print("Bringing up Docker services...")
     compose_up(project_root)
