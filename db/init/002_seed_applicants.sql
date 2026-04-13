@@ -1,11 +1,77 @@
-INSERT INTO applicants (full_name, email, program, gpa, status, keywords_text)
-VALUES
-('Ada Lovelace', 'ada@example.com', 'MSCS', 3.95, 'submitted', 'distributed systems, compilers'),
-('Alan Turing', 'alan@example.com', 'MSCS', 3.80, 'review', 'machine learning, theory'),
-('Grace Hopper', 'grace@example.com', 'MSDS', 3.70, 'submitted', 'databases, systems')
-ON DUPLICATE KEY UPDATE
-  full_name = VALUES(full_name),
-  program = VALUES(program),
-  gpa = VALUES(gpa),
-  status = VALUES(status),
-  keywords_text = VALUES(keywords_text);
+INSERT INTO Program (ProgramID, ProgramMajor) VALUES
+(1, 'Computer Science'),
+(2, 'Cybersecurity'),
+(3, 'Data Science'),
+(4, 'Software Engineering'),
+(5, 'Information Systems');
+
+INSERT INTO Advisor (AdvisorID, AdvisorName) VALUES
+(1, 'Dr. Smith'),
+(2, 'Dr. Patel'),
+(3, 'Dr. Rodriguez'),
+(4, 'Dr. Chen'),
+(5, 'Dr. Walker');
+
+INSERT INTO Applicant (UserID, ApplicantName, UndergraduateGPA, DegreeEarned) VALUES
+(1,'Alice Johnson',3.62,'BSc Computer Science'),
+(2,'Brian Mitchell',3.45,'BSc Information Technology'),
+(3,'Carla Gomez',3.81,'BSc Computer Engineering'),
+(4,'Daniel Wright',3.20,'BSc Information Systems'),
+(5,'Emily Carter',3.74,'BSc Data Science'),
+(6,'Frank Bennett',3.12,'BSc Mathematics'),
+(7,'Grace Kim',3.90,'BSc Computer Science'),
+(8,'Hassan Ali',3.55,'BSc Cybersecurity'),
+(9,'Isabella Rossi',3.67,'BSc Software Engineering'),
+(10,'Jacob Lee',3.49,'BSc Computer Science'),
+(11,'Katherine Brooks',3.85,'BSc Data Science'),
+(12,'Liam Turner',3.28,'BSc Information Systems'),
+(13,'Maya Patel',3.72,'BSc Computer Science'),
+(14,'Nathan Scott',3.30,'BSc Mathematics'),
+(15,'Olivia Rivera',3.91,'BSc Software Engineering'),
+(16,'Patrick Hughes',3.44,'BSc Information Technology'),
+(17,'Quinn Foster',3.58,'BSc Cybersecurity'),
+(18,'Rachel Green',3.77,'BSc Data Science'),
+(19,'Samuel Reed',3.41,'BSc Computer Science'),
+(20,'Tina Zhou',3.88,'BSc Computer Engineering'),
+(21,'Uma Narayan',3.69,'BSc Information Systems'),
+(22,'Victor Alvarez',3.33,'BSc Cybersecurity'),
+(23,'Wendy Collins',3.76,'BSc Software Engineering'),
+(24,'Xavier Morales',3.52,'BSc Computer Science'),
+(25,'Yuki Tanaka',3.94,'BSc Computer Science'),
+(26,'Zachary King',3.29,'BSc Information Technology'),
+(27,'Aaron Blake',3.60,'BSc Data Science'),
+(28,'Bianca Torres',3.73,'BSc Software Engineering'),
+(29,'Carlos Mendoza',3.47,'BSc Computer Engineering'),
+(30,'Hong Meiling',3.68,'BSc Security Studies');
+
+INSERT INTO Application (ApplicationID, TermApplyingFor, AdmissionDecision, UserID, ProgramID, AdvisorID) VALUES
+(1,'Fall 2026','Accepted',1,1,1),
+(2,'Fall 2026','Accepted',2,5,2),
+(3,'Fall 2026','Pending',3,4,3),
+(4,'Fall 2026','Rejected',4,5,2),
+(5,'Fall 2026','Accepted',5,3,4),
+(6,'Fall 2026','Pending',6,3,1),
+(7,'Fall 2026','Accepted',7,1,4),
+(8,'Fall 2026','Accepted',8,2,3),
+(9,'Fall 2026','Pending',9,4,1),
+(10,'Fall 2026','Accepted',10,1,5),
+(11,'Fall 2026','Accepted',11,3,2),
+(12,'Fall 2026','Rejected',12,5,3),
+(13,'Fall 2026','Accepted',13,1,4),
+(14,'Fall 2026','Pending',14,3,1),
+(15,'Fall 2026','Accepted',15,4,2),
+(16,'Fall 2026','Pending',16,5,5),
+(17,'Fall 2026','Accepted',17,2,3),
+(18,'Fall 2026','Accepted',18,3,4),
+(19,'Fall 2026','Pending',19,1,1),
+(20,'Fall 2026','Accepted',20,4,2),
+(21,'Fall 2026','Pending',21,5,3),
+(22,'Fall 2026','Rejected',22,2,5),
+(23,'Fall 2026','Accepted',23,4,1),
+(24,'Fall 2026','Pending',24,1,2),
+(25,'Fall 2026','Accepted',25,1,4),
+(26,'Fall 2026','Rejected',26,5,3),
+(27,'Fall 2026','Accepted',27,3,2),
+(28,'Fall 2026','Accepted',28,4,5),
+(29,'Fall 2026','Pending',29,1,1),
+(30,'Fall 2026','Accepted',30,2,3);
