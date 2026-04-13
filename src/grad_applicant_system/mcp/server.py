@@ -138,6 +138,32 @@ def ingest_pdf(file_path: str) -> dict:
         }
 
 
+@mcp.tool()
+def ingest_pdfs(file_paths: list[str]) -> dict:
+    """
+    Ingest multiple PDFs and return a mapping of file -> result.
+    """
+    results: dict = {}
+    for p in file_paths:
+        try:
+            text = parser.extract_text(p)
+            data = extractor.extract(text)
+
+            results[p] = {
+                "status": "success",
+                "file": p,
+                "data": data,
+            }
+        except Exception as e:
+            results[p] = {
+                "status": "error",
+                "file": p,
+                "message": str(e),
+            }
+
+    return results
+
+
 def serve() -> None:
     """
     Run the MCP server over Streamable HTTP.

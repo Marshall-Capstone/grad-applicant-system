@@ -97,3 +97,17 @@ class PDFDocumentParser:
                     continue
 
         return text
+
+    def extract_texts(self, file_paths: list[str]) -> dict:
+        """
+        Convenience helper to extract text from multiple PDF file paths.
+
+        Returns a mapping of file_path -> extracted_text (empty string on failure).
+        """
+        results: dict = {}
+        for p in file_paths:
+            try:
+                results[p] = self.extract_text(p) or ""
+            except Exception:
+                results[p] = ""
+        return results

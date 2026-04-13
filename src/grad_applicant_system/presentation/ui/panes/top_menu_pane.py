@@ -34,29 +34,47 @@ class TopMenuPane(BasePane):
 
                                 _tk_root = _tk.Tk()
                                 _tk_root.withdraw()
-                                path = _fd.askopenfilename(
+                                paths = _fd.askopenfilenames(
                                     filetypes=[("PDF files", "*.pdf")]
                                 )
                                 _tk_root.destroy()
                             except Exception:
-                                path = None
+                                paths = ()
 
-                            if path:
-                                # Basic validation: extension and header
+                            # `askopenfilenames` returns a tuple of paths
+                            if paths:
+                                # normalize single-selection to list for downstream
+                                selected = list(paths)
+                            else:
+                                selected = []
+
+                            # Validate and ingest selected files
+                            if not selected:
+                                selected = []
+
+                            valid_paths = []
+                            for p in selected:
                                 valid = False
                                 try:
-                                    if path.lower().endswith(".pdf"):
-                                        with open(path, "rb") as _f:
+                                    if p.lower().endswith(".pdf"):
+                                        with open(p, "rb") as _f:
                                             valid = _f.read(4) == b"%PDF"
                                 except Exception:
                                     valid = False
 
                                 if not valid:
                                     self._viewmodel._transcript.append(
-                                        TranscriptEntry(role="system", text="Selected file is not a valid PDF.")
+                                        TranscriptEntry(role="system", text=f"Selected file is not a valid PDF: {p}")
                                     )
                                 else:
-                                    self._viewmodel.ingest_pdf(path)
+                                    valid_paths.append(p)
+
+                            if valid_paths:
+                                # Use batch ingest when multiple files provided
+                                if len(valid_paths) == 1:
+                                    self._viewmodel.ingest_pdf(valid_paths[0])
+                                else:
+                                    self._viewmodel.ingest_pdfs(valid_paths)
                     except Exception:
                         # swallow UI-level errors to avoid crashing menu
                         pass
