@@ -3,45 +3,49 @@ from typing import Optional
 
 
 class SimpleExtractionProcessor:
-    """Converts raw text to structured applicant data.
+    """Converts raw text to structured applicant / application data.
 
-    Produces a dict containing keys that mirror the `applicants` table
-    schema: `id`, `full_name`, `email`, `program`, `gpa`, `status`,
-    `keywords_text`, `created_at` (where available). For backwards
-    compatibility the key `name` is preserved as an alias for `full_name`.
+    Produces a dict with keys aligned to the updated schema:
+    - `applicant_name`, `undergraduate_gpa`, `degree_earned`
+    - `program_major`
+    - `advisor_name`
+    - `term_applying_for`, `admission_decision`
+
+    Backwards-compatible keys are preserved where sensible (`full_name`, `name`).
     """
 
     def extract(self, text: Optional[str]) -> dict:
         if not text:
             return {
-                "id": None,
+                "applicant_name": None,
                 "full_name": None,
                 "name": None,
-                "email": None,
-                "program": None,
-                "gpa": None,
-                "status": None,
-                "keywords_text": None,
-                "created_at": None,
+                "undergraduate_gpa": None,
+                "degree_earned": None,
+                "program_major": None,
+                "advisor_name": None,
+                "term_applying_for": None,
+                "admission_decision": None,
             }
 
         # normalize to str
         text = str(text)
 
         full_name = self._full_name(text)
-        gpa = self._gpa(text)
 
         return {
-            "id": self._id(text),
+            # Applicant
+            "applicant_name": full_name,
             "full_name": full_name,
-            # keep `name` for compatibility with older callers
             "name": full_name,
-            "email": self._email(text),
-            "program": self._program(text),
-            "gpa": gpa,
-            "status": self._status(text),
-            "keywords_text": self._keywords_text(text),
-            "created_at": self._created_at(text),
+            "undergraduate_gpa": self._gpa(text),
+            "degree_earned": self._degree(text),
+
+            # Program / advisor / application
+            "program_major": self._program(text),
+            "advisor_name": self._advisor(text),
+            "term_applying_for": self._term(text),
+            "admission_decision": self._status(text),
         }
 
     # Backwards-compatible adapters
@@ -70,6 +74,10 @@ class SimpleExtractionProcessor:
         match = re.search(r"GPA[:\s]*([0-4](?:\.\d{1,2})?)", text, re.IGNORECASE)
         return match.group(1) if match else None
 
+    def _degree(self, text: str) -> Optional[str]:
+        match = re.search(r"Degree[:\s]*(.+)", text, re.IGNORECASE)
+        return match.group(1).strip() if match else None
+
     def _name(self, text: str) -> Optional[str]:
         # Deprecated alias retained for compatibility. Prefer `_full_name`.
         return self._full_name(text)
@@ -96,21 +104,20 @@ class SimpleExtractionProcessor:
             return match.group(1).strip()
         return None
 
+    def _advisor(self, text: str) -> Optional[str]:
+        match = re.search(r"Advisor[:\s]*(.+)", text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+        return None
+
+    def _term(self, text: str) -> Optional[str]:
+        match = re.search(r"Term[:\s]*(.+)", text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+        return None
+
     def _status(self, text: str) -> Optional[str]:
         match = re.search(r"Status[:\s]*(\w+)", text, re.IGNORECASE)
         if match:
             return match.group(1).strip()
-        return None
-
-    def _keywords_text(self, text: str) -> Optional[str]:
-        match = re.search(r"Keywords?[:\s]*(.+)", text, re.IGNORECASE)
-        if match:
-            return match.group(1).strip()
-        return None
-
-    def _created_at(self, text: str) -> Optional[str]:
-        # Try to find an ISO-like date (YYYY-MM-DD) as a crude heuristic
-        match = re.search(r"(20\d{2}-\d{2}-\d{2})", text)
-        if match:
-            return match.group(1)
         return None
