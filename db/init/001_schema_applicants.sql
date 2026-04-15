@@ -37,5 +37,8 @@ CREATE TABLE Application (
 
     CONSTRAINT fk_advisor
         FOREIGN KEY (AdvisorID)
-        REFERENCES Advisor(AdvisorID)
+        REFERENCES Advisor(AdvisorID),
+        
+	CONSTRAINT unique_application
+        UNIQUE (UserID, ProgramID, TermApplyingFor)
 );
