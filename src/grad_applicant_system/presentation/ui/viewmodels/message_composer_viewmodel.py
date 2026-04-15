@@ -116,6 +116,8 @@ class MessageComposerViewModel:
 
         # In-memory transcript for the current conversation session.
         self._transcript: list[TranscriptEntry] = []
+        # Track files uploaded via the UI so they can be referenced by the assistant.
+        self._uploaded_files: list[str] = []
 
         # Thread-safe queue used to hand results from worker thread -> UI thread.
         self._worker_results: Queue[_WorkerResult] = Queue()
@@ -406,7 +408,9 @@ class MessageComposerViewModel:
         - Never directly touch ImGui widgets or UI render code.
         """
         try:
-            reply = self._assistant_service.send_message(message)
+            # Pass uploaded files to the assistant so it can call MCP tools
+            # (e.g., `ingest_pdfs`) if it decides to process them.
+            reply = self._assistant_service.send_message(message, self._uploaded_files)
         except Exception as exc:
             error_text = f"Assistant request failed: {exc}"
             self._worker_results.put(_WorkerFailure(error_text=error_text))
@@ -490,6 +494,81 @@ class MessageComposerViewModel:
             self._transcript.append(
                 TranscriptEntry(role="system", text="\n".join(summary_lines))
             )
+            self._status_text = ""
+
+            # Record uploaded file for assistant context
+            try:
+                if file_path and file_path not in self._uploaded_files:
+                    self._uploaded_files.append(file_path)
+            except Exception:
+                pass
+
+        except Exception as exc:
+            err = f"PDF ingestion failed: {exc}"
+            self._transcript.append(TranscriptEntry(role="system", text=err))
+            self._status_text = "PDF ingestion failed."
+
+    def ingest_pdfs(self, file_paths: list[str]) -> None:
+        """
+        Ingest multiple PDF files sequentially and append summaries to the transcript.
+
+        This method mirrors `ingest_pdf` but accepts a list of file paths.
+        It runs synchronously and reports per-file failures into the transcript.
+        """
+        if self._is_busy:
+            self._status_text = "Please wait for the current response."
+            return
+
+        if not file_paths:
+            self._status_text = "No files selected."
+            return
+
+        self._status_text = f"Processing {len(file_paths)} PDFs..."
+
+        try:
+            from grad_applicant_system.infrastructure.parsing.pdf_document_parser import (
+                PDFDocumentParser,
+            )
+            from grad_applicant_system.infrastructure.parsing.simple_extraction_processor import (
+                SimpleExtractionProcessor,
+            )
+
+            parser = PDFDocumentParser()
+            extractor = SimpleExtractionProcessor()
+
+            for file_path in file_paths:
+                try:
+                    text = parser.extract_text(file_path) or ""
+                    data = extractor.extract(text)
+
+                    summary_lines = [f"Uploaded: {file_path}"]
+                    if data.get("name"):
+                        summary_lines.append(f"Name: {data['name']}")
+                    if data.get("email"):
+                        summary_lines.append(f"Email: {data['email']}")
+                    if data.get("gpa"):
+                        summary_lines.append(f"GPA: {data['gpa']}")
+                    if not (data.get("name") or data.get("email") or data.get("gpa")):
+                        excerpt = (text or "").strip().replace("\n", " ")[:400]
+                        if excerpt:
+                            summary_lines.append(f"Excerpt: {excerpt}")
+                        else:
+                            summary_lines.append("No extractable content found.")
+
+                    self._transcript.append(
+                        TranscriptEntry(role="system", text="\n".join(summary_lines))
+                    )
+
+                    try:
+                        if file_path and file_path not in self._uploaded_files:
+                            self._uploaded_files.append(file_path)
+                    except Exception:
+                        pass
+
+                except Exception as exc:
+                    err = f"PDF ingestion failed for {file_path}: {exc}"
+                    self._transcript.append(TranscriptEntry(role="system", text=err))
+
             self._status_text = ""
 
         except Exception as exc:

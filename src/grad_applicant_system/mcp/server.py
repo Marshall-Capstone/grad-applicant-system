@@ -14,6 +14,7 @@ from grad_applicant_system.infrastructure.parsing import (
     PDFDocumentParser,
     SimpleExtractionProcessor,
 )
+from grad_applicant_system.infrastructure.persistence import mysql_persistence
 
 
 mcp = FastMCP("Capstone Sandbox", stateless_http=True, json_response=True)
@@ -125,17 +126,56 @@ def ingest_pdf(file_path: str) -> dict:
         text = parser.extract_text(file_path)
         data = extractor.extract(text)
 
+        # persist parsed data into DB (best-effort)
+        try:
+            db_res = mysql_persistence.save_parsed_data(data)
+        except Exception as e:
+            db_res = {"error": str(e)}
+
         return {
             "status": "success",
             "file": file_path,
-            "data": data
+            "data": data,
+            "db": db_res,
         }
 
     except Exception as e:
         return {
             "status": "error",
-            "message": str(e)
+            "message": str(e),
         }
+
+
+@mcp.tool()
+def ingest_pdfs(file_paths: list[str]) -> dict:
+    """
+    Ingest multiple PDFs and return a mapping of file -> result.
+    """
+    results: dict = {}
+    for p in file_paths:
+        try:
+            text = parser.extract_text(p)
+            data = extractor.extract(text)
+            # persist parsed data into DB (best-effort)
+            try:
+                db_res = mysql_persistence.save_parsed_data(data)
+            except Exception as e:
+                db_res = {"error": str(e)}
+
+            results[p] = {
+                "status": "success",
+                "file": p,
+                "data": data,
+                "db": db_res,
+            }
+        except Exception as e:
+            results[p] = {
+                "status": "error",
+                "file": p,
+                "message": str(e),
+            }
+
+    return results
 
 
 def serve() -> None:

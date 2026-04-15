@@ -47,7 +47,7 @@ class AnthropicApplicantAssistantService(ApplicantAssistantService):
             "If the current tools are insufficient, explain that limitation clearly."
         )
 
-    def send_message(self, user_message: str) -> AssistantReply:
+    def send_message(self, user_message: str, available_files: list[str] | None = None) -> AssistantReply:
         text = user_message.strip()
         if not text:
             return AssistantReply(
@@ -59,12 +59,29 @@ class AnthropicApplicantAssistantService(ApplicantAssistantService):
             self._mcp_tool_client.list_tools()
         )
 
-        messages: list[dict[str, Any]] = [
-            {
-                "role": "user",
-                "content": text,
-            }
-        ]
+        messages: list[dict[str, Any]] = []
+
+        # If the UI has uploaded files, provide them as an explicit system
+        # message so the model can reference them and call the `ingest_pdfs`
+        # MCP tool when appropriate.
+        if available_files:
+            try:
+                files_list = json.dumps(list(available_files))
+            except Exception:
+                files_list = str(list(available_files))
+
+            messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "Available uploaded files: "
+                        + files_list
+                        + ". If you want to process these files, call the MCP tool `ingest_pdfs` with argument `{'file_paths': [<paths>]}`."
+                    ),
+                }
+            )
+
+        messages.append({"role": "user", "content": text})
 
         response = self._client.messages.create(
             model=self._model,
