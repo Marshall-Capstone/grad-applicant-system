@@ -76,7 +76,7 @@ def list_applicants(limit: int = 25) -> dict[str, Any]:
         cur.execute(
             """
             SELECT id, full_name, email, program, gpa, status, keywords_text, created_at
-            FROM Applicants
+            FROM Applicant
             ORDER BY id
             LIMIT %s
             """,
@@ -102,7 +102,7 @@ def get_applicant_by_email(email: str) -> dict[str, Any]:
         cur.execute(
             """
             SELECT id, full_name, email, program, gpa, status, keywords_text, created_at
-            FROM Applicants
+            FROM Applicant
             WHERE email = %s
             """,
             (email,),
