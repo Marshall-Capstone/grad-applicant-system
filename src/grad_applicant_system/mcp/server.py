@@ -68,16 +68,27 @@ def _jsonify_row(row: dict[str, Any]) -> dict[str, Any]:
 @mcp.tool()
 def list_applicants(limit: int = 25) -> dict[str, Any]:
     """
-    Return up to N applicants from the MySQL table.
+    Return up to N applicants from the MySQL schema.
     """
     conn = _db_connect()
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
             """
-            SELECT id, full_name, email, program, gpa, status, keywords_text, created_at
-            FROM Applicant
-            ORDER BY id
+            SELECT
+                a.UserID AS user_id,
+                a.ApplicantName AS applicant_name,
+                a.UndergraduateGPA AS undergraduate_gpa,
+                a.DegreeEarned AS degree_earned,
+                p.ProgramMajor AS program_major,
+                app.TermApplyingFor AS term_applying_for,
+                app.AdmissionDecision AS admission_decision,
+                adv.AdvisorName AS advisor_name
+            FROM Applicant a
+            LEFT JOIN Application app ON a.UserID = app.UserID
+            LEFT JOIN Program p ON app.ProgramID = p.ProgramID
+            LEFT JOIN Advisor adv ON app.AdvisorID = adv.AdvisorID
+            ORDER BY a.UserID
             LIMIT %s
             """,
             (limit,),
@@ -92,20 +103,31 @@ def list_applicants(limit: int = 25) -> dict[str, Any]:
 
 
 @mcp.tool()
-def get_applicant_by_email(email: str) -> dict[str, Any]:
+def get_applicant_by_user_id(user_id: int) -> dict[str, Any]:
     """
-    Lookup a single applicant by email.
+    Lookup a single applicant by UserID.
     """
     conn = _db_connect()
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(
             """
-            SELECT id, full_name, email, program, gpa, status, keywords_text, created_at
-            FROM Applicant
-            WHERE email = %s
+            SELECT
+                a.UserID AS user_id,
+                a.ApplicantName AS applicant_name,
+                a.UndergraduateGPA AS undergraduate_gpa,
+                a.DegreeEarned AS degree_earned,
+                p.ProgramMajor AS program_major,
+                app.TermApplyingFor AS term_applying_for,
+                app.AdmissionDecision AS admission_decision,
+                adv.AdvisorName AS advisor_name
+            FROM Applicant a
+            LEFT JOIN Application app ON a.UserID = app.UserID
+            LEFT JOIN Program p ON app.ProgramID = p.ProgramID
+            LEFT JOIN Advisor adv ON app.AdvisorID = adv.AdvisorID
+            WHERE a.UserID = %s
             """,
-            (email,),
+            (user_id,),
         )
         row = cur.fetchone()
         return {"found": bool(row), "row": _jsonify_row(row) if row else None}
