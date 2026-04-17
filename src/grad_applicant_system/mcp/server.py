@@ -139,6 +139,126 @@ def get_applicant_by_user_id(user_id: int) -> dict[str, Any]:
 
 
 @mcp.tool()
+def get_applicant_by_gpa(gpa: Decimal, operator: str) -> dict[str, Any]:
+    """
+    Lookup all applicants with a specific GPA or range of GPAs.
+    Operator will be one of the following: 
+        greater than ('gt')
+        lesser than ('lt')
+        equal to ('eq')
+        greater than or equal to ('gte')
+        lesser than or equal to ('lte')
+    """
+
+    OPERATOR_MAP = {
+        "gt": ">",
+        "lt": "<",
+        "eq": "=",
+        "gte": ">=",
+        "lte": "<="
+    }
+
+    if operator not in OPERATOR_MAP:
+        raise ValueError(f"Invalid operator: {operator}")
+
+    sql_op = OPERATOR_MAP[operator]
+
+    conn = _db_connect()
+
+    try:
+        cur = conn.cursor(dictionary = True)
+        cur.execute(
+            f"""
+            SELECT
+                a.UserID AS user_id,
+                a.ApplicantName AS applicant_name,
+                a.UndergraduateGPA AS undergraduate_gpa,
+                a.DegreeEarned AS degree_earned,
+                p.ProgramMajor AS program_major,
+                app.TermApplyingFor AS term_applying_for,
+                app.AdmissionDecision AS admission_decision,
+                adv.AdvisorName AS advisor_name
+            FROM Applicant a
+            LEFT JOIN Application app ON a.UserID = app.UserID
+            LEFT JOIN Program p ON app.ProgramID = p.ProgramID
+            LEFT JOIN Advisor adv ON app.AdvisorID = adv.AdvisorID
+            WHERE a.UndergraduateGPA {sql_op} %s
+            """,
+            (gpa,),
+        )
+        rows = cur.fetchall()
+        return {"found": bool(rows), "rows": [_jsonify_row(r) for r in rows]}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def get_applicant_by_field(field: str, value: str) -> dict[str: Any]:
+    """
+    Queries database with a non-GPA field. If user searches with an id, it must be an exact match. 
+    If not, values similar to input are allowed.
+    """
+    EXACT_FIELDS = {
+        "user_id":        "a.UserID",
+        "program_id":     "p.ProgramID",
+        "advisor_id":     "adv.AdvisorID",
+        "application_id": "app.ApplicationID"
+    }
+
+    LIKE_FIELDS = {
+        "applicant_name":     "a.ApplicantName",
+        "degree_earned":      "a.DegreeEarned",
+        "program_major":      "p.ProgramMajor",
+        "advisor_name":       "adv.AdvisorName",
+        "term_applying_for":  "app.TermApplyingFor",
+        "admission_decision": "app.AdmissionDecision"
+    }
+
+    if field in EXACT_FIELDS:
+        sql_field = EXACT_FIELDS[field]
+        sql_value = value
+        condition = f"{sql_field} = %s"
+    elif field in LIKE_FIELDS:
+        sql_field = LIKE_FIELDS[field]
+        sql_value = f"%{value}%"
+        condition = f"{sql_field} LIKE %s"
+    else:
+        raise ValueError(f"Invalid field: {field}")
+
+    conn = _db_connect()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            f"""
+            SELECT
+                a.UserID AS user_id,
+                a.ApplicantName AS applicant_name,
+                a.UndergraduateGPA AS undergraduate_gpa,
+                a.DegreeEarned AS degree_earned,
+                p.ProgramMajor AS program_major,
+                app.TermApplyingFor AS term_applying_for,
+                app.AdmissionDecision AS admission_decision,
+                adv.AdvisorName AS advisor_name
+            FROM Applicant a
+            LEFT JOIN Application app ON a.UserID = app.UserID
+            LEFT JOIN Program p ON app.ProgramID = p.ProgramID
+            LEFT JOIN Advisor adv ON app.AdvisorID = adv.AdvisorID
+            WHERE {condition}
+            """,
+            (sql_value,),
+        )
+        rows = cur.fetchall()
+        return {"found": bool(rows), "rows": [_jsonify_row(r) for r in rows]}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@mcp.tool()
 def ingest_pdf(file_path: str) -> dict:
     """
     Ingest a PDF, extract structured applicant data
