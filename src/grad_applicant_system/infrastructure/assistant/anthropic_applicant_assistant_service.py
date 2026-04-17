@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any
 
 import anthropic
@@ -43,6 +44,8 @@ class AnthropicApplicantAssistantService(ApplicantAssistantService):
         self._system_prompt = system_prompt or (
             "You are an applicant-assistant for a graduate applicant system. "
             "Use the available MCP tools whenever they help answer questions about applicants. "
+            "Do not answer general knowledge questions or provide information unrelated to applicants. "
+            "If a user asks anything outside the applicant domain, respond with an error message stating the request is unsupported. "
             "Do not invent applicant data. "
             "If the current tools are insufficient, explain that limitation clearly."
         )
@@ -53,6 +56,15 @@ class AnthropicApplicantAssistantService(ApplicantAssistantService):
             return AssistantReply(
                 user_message="",
                 assistant_message="Please enter a message.",
+            )
+
+        if self._is_general_knowledge_query(text):
+            return AssistantReply(
+                user_message=text,
+                assistant_message=(
+                    "ERROR: unsupported request. "
+                    "This assistant only handles graduate applicant data."
+                ),
             )
 
         claude_tools = self._mcp_tool_client.to_claude_tools(
@@ -236,3 +248,25 @@ class AnthropicApplicantAssistantService(ApplicantAssistantService):
             return value.__dict__
 
         return str(value)
+
+    def _is_general_knowledge_query(self, text: str) -> bool:
+        normalized = text.strip().lower()
+        if not normalized:
+            return False
+
+        domain_keywords = re.compile(
+            r"\b(applicant|application|program|advisor|gpa|term|admission|transcript|student|file|pdf|email|name|user id|degree|major|school)\b",
+            re.IGNORECASE,
+        )
+        if domain_keywords.search(text):
+            return False
+
+        general_question = bool(
+            re.match(r"^(what|who|where|when|why|how|define|explain)\b", normalized)
+            or "capital of" in normalized
+            or "what is" in normalized
+            or "who is" in normalized
+            or "where is" in normalized
+        )
+
+        return general_question

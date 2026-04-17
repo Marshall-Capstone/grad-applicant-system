@@ -440,6 +440,59 @@ class MessageComposerViewModel:
         self._revealed_char_count = 0
         self._reveal_char_budget = 0.0
 
+    def _build_pdf_summary(
+        self,
+        file_path: str,
+        raw_text: str,
+        extracted_data: dict,
+    ) -> list[str]:
+        summary_lines = [f"Uploaded: {file_path}"]
+        structured_found = False
+
+        if extracted_data.get("applicant_name"):
+            summary_lines.append(f"Name: {extracted_data['applicant_name']}")
+            structured_found = True
+        elif extracted_data.get("name"):
+            summary_lines.append(f"Name: {extracted_data['name']}")
+            structured_found = True
+
+        if extracted_data.get("email"):
+            summary_lines.append(f"Email: {extracted_data['email']}")
+            structured_found = True
+
+        if extracted_data.get("undergraduate_gpa"):
+            summary_lines.append(f"GPA: {extracted_data['undergraduate_gpa']}")
+            structured_found = True
+
+        if extracted_data.get("degree_earned"):
+            summary_lines.append(f"Degree: {extracted_data['degree_earned']}")
+            structured_found = True
+
+        if extracted_data.get("program_major"):
+            summary_lines.append(f"Program: {extracted_data['program_major']}")
+            structured_found = True
+
+        if extracted_data.get("advisor_name"):
+            summary_lines.append(f"Advisor: {extracted_data['advisor_name']}")
+            structured_found = True
+
+        if extracted_data.get("term_applying_for"):
+            summary_lines.append(f"Term: {extracted_data['term_applying_for']}")
+            structured_found = True
+
+        if extracted_data.get("admission_decision"):
+            summary_lines.append(f"Admission decision: {extracted_data['admission_decision']}")
+            structured_found = True
+
+        if not structured_found:
+            excerpt = raw_text.strip().replace("\n", " ")[:400]
+            if excerpt:
+                summary_lines.append(f"Excerpt: {excerpt}")
+            else:
+                summary_lines.append("No extractable content found.")
+
+        return summary_lines
+
     def ingest_pdf(self, file_path: str) -> None:
         """
         Ingest a PDF file, extract text and structured fields, and append
@@ -472,24 +525,9 @@ class MessageComposerViewModel:
             parser = PDFDocumentParser()
             extractor = SimpleExtractionProcessor()
 
-            text = parser.extract_text(file_path) or ""
+            text = parser.extract_text(file_path)
             data = extractor.extract(text)
-
-            # Append a transcript summary with the parsed fields
-            summary_lines = [f"Uploaded: {file_path}"]
-            if data.get("name"):
-                summary_lines.append(f"Name: {data['name']}")
-            if data.get("email"):
-                summary_lines.append(f"Email: {data['email']}")
-            if data.get("gpa"):
-                summary_lines.append(f"GPA: {data['gpa']}")
-            if not (data.get("name") or data.get("email") or data.get("gpa")):
-                # Fallback: include a text excerpt if structured fields missing
-                excerpt = (text or "").strip().replace("\n", " ")[:400]
-                if excerpt:
-                    summary_lines.append(f"Excerpt: {excerpt}")
-                else:
-                    summary_lines.append("No extractable content found.")
+            summary_lines = self._build_pdf_summary(file_path, text, data)
 
             self._transcript.append(
                 TranscriptEntry(role="system", text="\n".join(summary_lines))
@@ -538,22 +576,9 @@ class MessageComposerViewModel:
 
             for file_path in file_paths:
                 try:
-                    text = parser.extract_text(file_path) or ""
+                    text = parser.extract_text(file_path)
                     data = extractor.extract(text)
-
-                    summary_lines = [f"Uploaded: {file_path}"]
-                    if data.get("name"):
-                        summary_lines.append(f"Name: {data['name']}")
-                    if data.get("email"):
-                        summary_lines.append(f"Email: {data['email']}")
-                    if data.get("gpa"):
-                        summary_lines.append(f"GPA: {data['gpa']}")
-                    if not (data.get("name") or data.get("email") or data.get("gpa")):
-                        excerpt = (text or "").strip().replace("\n", " ")[:400]
-                        if excerpt:
-                            summary_lines.append(f"Excerpt: {excerpt}")
-                        else:
-                            summary_lines.append("No extractable content found.")
+                    summary_lines = self._build_pdf_summary(file_path, text, data)
 
                     self._transcript.append(
                         TranscriptEntry(role="system", text="\n".join(summary_lines))

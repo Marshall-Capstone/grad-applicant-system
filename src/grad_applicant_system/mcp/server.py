@@ -158,6 +158,7 @@ def ingest_pdf(file_path: str) -> dict:
             "status": "success",
             "file": file_path,
             "data": data,
+            "raw_text_length": len(text),
             "db": db_res,
         }
 
@@ -188,6 +189,7 @@ def ingest_pdfs(file_paths: list[str]) -> dict:
                 "status": "success",
                 "file": p,
                 "data": data,
+                "raw_text_length": len(text),
                 "db": db_res,
             }
         except Exception as e:
