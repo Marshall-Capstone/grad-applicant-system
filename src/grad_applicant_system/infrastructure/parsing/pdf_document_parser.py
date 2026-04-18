@@ -214,6 +214,7 @@ class PDFDocumentParser:
         If no backends are available or the file cannot be read, an empty
         string is returned rather than raising at import time.
         """
+    
         if not file_path:
             return ""
 
