@@ -288,6 +288,12 @@ def ingest_pdf(file_path: str) -> dict:
             "message": str(e),
         }
 
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+        }
+
 
 @mcp.tool()
 def ingest_pdfs(file_paths: list[str]) -> dict:
