@@ -10,17 +10,25 @@ import mysql.connector
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
-from grad_applicant_system.infrastructure.parsing import (
-    PDFDocumentParser,
-    SimpleExtractionProcessor,
-)
+from grad_applicant_system.infrastructure.parsing.pdf_ingestion_service import (
+    PdfIngestionService, 
+    PDFDocumentParser, 
+    SimpleExtractionProcessor
+    )
 from grad_applicant_system.infrastructure.persistence import mysql_persistence
 
+parser = PDFDocumentParser()
+extractor = SimpleExtractionProcessor()
+pdf_ingestion_service = PdfIngestionService(parser=parser, extractor=extractor)
 
 mcp = FastMCP("Capstone Sandbox", stateless_http=True, json_response=True)
 
 parser = PDFDocumentParser()
 extractor = SimpleExtractionProcessor()
+
+#######################################################################
+# Ensure environment is configured
+#######################################################################
 
 def _load_env() -> None:
     """Allow running this file directly (outside run.py) while still using .env."""
@@ -51,6 +59,30 @@ def _db_connect():
         connection_timeout=5,
     )
 
+#######################################################################
+# MCP Server
+#######################################################################   
+
+def serve() -> None:
+    """
+    Run the MCP server over Streamable HTTP.
+    Default URL: http://localhost:8000/mcp
+    """
+    _load_env()
+
+    # Optional: make host/port configurable
+    host = os.getenv("MCP_HOST", "127.0.0.1")
+    port = int(os.getenv("MCP_PORT", "8000"))
+    mcp.settings.host = host
+    mcp.settings.port = port
+
+    print(f"MCP server listening at http://{host}:{port}/mcp")
+
+    try:
+        mcp.run(transport="streamable-http")
+    except KeyboardInterrupt:
+        print("\nMCP server stopped.")
+
 
 def _jsonify(value: Any) -> Any:
     """Convert MySQL-ish types into JSON-safe types."""
@@ -63,6 +95,11 @@ def _jsonify(value: Any) -> Any:
 
 def _jsonify_row(row: dict[str, Any]) -> dict[str, Any]:
     return {k: _jsonify(v) for k, v in row.items()}
+
+
+#######################################################################
+# Tools
+#######################################################################
 
 
 @mcp.tool()
@@ -101,6 +138,40 @@ def list_applicants(limit: int = 25) -> dict[str, Any]:
         except Exception:
             pass
 
+@mcp.tool()
+def list_all_applicants() -> dict[str, Any]:
+    """
+    Return all applicants from the MySQL schema with accurate count of actual applicants
+    There is a limit to what Claude returns so this provides for the best remedy.
+    """
+    conn = _db_connect()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            """
+            SELECT
+                a.UserID AS user_id,
+                a.ApplicantName AS applicant_name,
+                a.UndergraduateGPA AS undergraduate_gpa,
+                a.DegreeEarned AS degree_earned,
+                p.ProgramMajor AS program_major,
+                app.TermApplyingFor AS term_applying_for,
+                app.AdmissionDecision AS admission_decision,
+                adv.AdvisorName AS advisor_name
+            FROM Applicant a
+            LEFT JOIN Application app ON a.UserID = app.UserID
+            LEFT JOIN Program p ON app.ProgramID = p.ProgramID
+            LEFT JOIN Advisor adv ON app.AdvisorID = adv.AdvisorID
+            ORDER BY a.ApplicantName, a.UserID
+            """
+        )
+        rows = cur.fetchall()
+        return {"count": len(rows), "rows": [_jsonify_row(r) for r in rows]}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 @mcp.tool()
 def get_applicant_by_user_id(user_id: int) -> dict[str, Any]:
@@ -256,97 +327,6 @@ def get_applicant_by_field(field: str, value: str) -> dict[str: Any]:
             conn.close()
         except Exception:
             pass
-
-
-@mcp.tool()
-def ingest_pdf(file_path: str) -> dict:
-    """
-    Ingest a PDF, extract structured applicant data
-    """
-
-    try:
-        text = parser.extract_text(file_path)
-        data = extractor.extract(text)
-
-        # persist parsed data into DB (best-effort)
-        try:
-            db_res = mysql_persistence.save_parsed_data(data)
-        except Exception as e:
-            db_res = {"error": str(e)}
-
-        return {
-            "status": "success",
-            "file": file_path,
-            "data": data,
-            "raw_text_length": len(text),
-            "db": db_res,
-        }
-
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e),
-        }
-
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e),
-        }
-
-
-@mcp.tool()
-def ingest_pdfs(file_paths: list[str]) -> dict:
-    """
-    Ingest multiple PDFs and return a mapping of file -> result.
-    """
-    results: dict = {}
-    for p in file_paths:
-        try:
-            text = parser.extract_text(p)
-            data = extractor.extract(text)
-            # persist parsed data into DB (best-effort)
-            try:
-                db_res = mysql_persistence.save_parsed_data(data)
-            except Exception as e:
-                db_res = {"error": str(e)}
-
-            results[p] = {
-                "status": "success",
-                "file": p,
-                "data": data,
-                "raw_text_length": len(text),
-                "db": db_res,
-            }
-        except Exception as e:
-            results[p] = {
-                "status": "error",
-                "file": p,
-                "message": str(e),
-            }
-
-    return results
-
-
-def serve() -> None:
-    """
-    Run the MCP server over Streamable HTTP.
-    Default URL: http://localhost:8000/mcp
-    """
-    _load_env()
-
-    # Optional: make host/port configurable
-    host = os.getenv("MCP_HOST", "127.0.0.1")
-    port = int(os.getenv("MCP_PORT", "8000"))
-    mcp.settings.host = host
-    mcp.settings.port = port
-
-    print(f"MCP server listening at http://{host}:{port}/mcp")
-
-    try:
-        mcp.run(transport="streamable-http")
-    except KeyboardInterrupt:
-        print("\nMCP server stopped.")
 
 
 if __name__ == "__main__":

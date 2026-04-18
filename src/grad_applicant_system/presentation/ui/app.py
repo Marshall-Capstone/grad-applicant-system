@@ -13,6 +13,15 @@ from grad_applicant_system.infrastructure.mcp import McpToolClient
 from grad_applicant_system.presentation.ui.panes.message_composer_pane import (
     MessageComposerPane,
 )
+from grad_applicant_system.infrastructure.parsing.pdf_document_parser import (
+    PDFDocumentParser,
+)
+from grad_applicant_system.infrastructure.parsing.simple_extraction_processor import (
+    SimpleExtractionProcessor,
+)
+from grad_applicant_system.infrastructure.parsing.pdf_ingestion_service import (
+    PdfIngestionService,
+)
 from grad_applicant_system.presentation.ui.panes.top_menu_pane import TopMenuPane
 from grad_applicant_system.presentation.ui.panes.transcript_pane import TranscriptPane
 from grad_applicant_system.presentation.ui.viewmodels.message_composer_viewmodel import (
@@ -57,10 +66,22 @@ class App:
             print(f"Failed to load emblem texture: {exc}")
             return None
 
+    def _build_pdf_ingestion_service(self) -> PdfIngestionService:
+        """
+        Build the shared PDF ingestion workflow used by the UI preview path.
+
+        This creates one parser and one extractor for the UI process and wraps
+        them in the shared ingestion service.
+        """
+        parser = PDFDocumentParser()
+        extractor = SimpleExtractionProcessor()
+        return PdfIngestionService(parser=parser, extractor=extractor)    
+
     def _build_main_view(self) -> MainView:
         assistant_service = self._build_assistant_service()
+        pdf_ingestion_service = self._build_pdf_ingestion_service()
 
-        message_composer_viewmodel = MessageComposerViewModel(assistant_service)
+        message_composer_viewmodel = MessageComposerViewModel(assistant_service=assistant_service, pdf_ingestion_service=pdf_ingestion_service,)
         self._message_composer_viewmodel = message_composer_viewmodel
 
         top_menu_pane = TopMenuPane(message_composer_viewmodel)

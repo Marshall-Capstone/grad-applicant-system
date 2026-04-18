@@ -4,4 +4,5 @@ from .simple_extraction_processor import SimpleExtractionProcessor
 __all__ = [
     "PDFDocumentParser",
     "SimpleExtractionProcessor",
+    "PdfIngestionService"
 ]
