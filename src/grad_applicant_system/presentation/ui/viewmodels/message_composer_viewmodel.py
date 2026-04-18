@@ -9,6 +9,9 @@ from grad_applicant_system.application.ports import (
     ApplicantAssistantService,
     AssistantReply,
 )
+from grad_applicant_system.infrastructure.parsing.pdf_ingestion_service import (
+    PdfIngestionService,
+)
 
 
 @dataclass(frozen=True)
@@ -81,7 +84,7 @@ class MessageComposerViewModel:
       result back into ViewModel state.
     """
 
-    def __init__(self, assistant_service: ApplicantAssistantService) -> None:
+    def __init__(self,assistant_service: ApplicantAssistantService, pdf_ingestion_service: PdfIngestionService,) -> None:
         """
         Initialize UI state for a new conversation session.
 
@@ -91,6 +94,8 @@ class MessageComposerViewModel:
         """
         # Application/service dependency used to perform assistant requests.
         self._assistant_service = assistant_service
+
+        self._pdf_ingestion_service = pdf_ingestion_service
 
         # Current draft text in the composer input box.
         self._query_text = ""
@@ -115,9 +120,7 @@ class MessageComposerViewModel:
         self._is_busy = False
 
         # In-memory transcript for the current conversation session.
-        self._transcript: list[TranscriptEntry] = []
-        # Track files uploaded via the UI so they can be referenced by the assistant.
-        self._uploaded_files: list[str] = []
+        self._transcript: list[TranscriptEntry] = []        
 
         # Thread-safe queue used to hand results from worker thread -> UI thread.
         self._worker_results: Queue[_WorkerResult] = Queue()
@@ -408,9 +411,10 @@ class MessageComposerViewModel:
         - Never directly touch ImGui widgets or UI render code.
         """
         try:
-            # Pass uploaded files to the assistant so it can call MCP tools
-            # (e.g., `ingest_pdfs`) if it decides to process them.
-            reply = self._assistant_service.send_message(message, self._uploaded_files)
+            # The assistant now operates as a query-only layer.
+            # PDF upload/ingestion happens directly through the UI upload workflow.
+            reply = self._assistant_service.send_message(message)
+
         except Exception as exc:
             error_text = f"Assistant request failed: {exc}"
             self._worker_results.put(_WorkerFailure(error_text=error_text))
@@ -445,7 +449,8 @@ class MessageComposerViewModel:
         file_path: str,
         raw_text: str,
         extracted_data: dict,
-    ) -> list[str]:
+        db_result: dict | None = None,
+        ) -> list[str]:
         summary_lines = [f"Uploaded: {file_path}"]
         structured_found = False
 
@@ -481,7 +486,8 @@ class MessageComposerViewModel:
             structured_found = True
 
         if extracted_data.get("admission_decision"):
-            summary_lines.append(f"Admission decision: {extracted_data['admission_decision']}")
+            summary_lines.append(
+            f"Admission decision: {extracted_data['admission_decision']}")
             structured_found = True
 
         if not structured_found:
@@ -491,16 +497,27 @@ class MessageComposerViewModel:
             else:
                 summary_lines.append("No extractable content found.")
 
+        # Surface DB outcome in the transcript so upload behavior is obvious.
+        if db_result is not None:
+            if db_result.get("error"):
+                summary_lines.append(f"DB: error -> {db_result['error']}")
+            elif db_result.get("skipped"):
+                summary_lines.append(
+                f"DB: skipped -> {db_result.get('reason', 'no reason provided')}")
+            else:
+                summary_lines.append(
+                "DB: saved "
+                f"(user_id={db_result.get('user_id')}, "
+                f"application_id={db_result.get('application_id')}, "
+                f"program_id={db_result.get('program_id')}, "
+                f"advisor_id={db_result.get('advisor_id')})")
+
         return summary_lines
 
     def ingest_pdf(self, file_path: str) -> None:
         """
-        Ingest a PDF file, extract text and structured fields, and append
-        a summary to the transcript.
-
-        This method is defensive and performs work synchronously on the UI
-        thread. It catches and surfaces any errors as a transcript entry
-        rather than raising.
+        Ingest a PDF file, extract text and structured fields, persist the
+        structured result, and append a summary to the transcript.
         """
         if self._is_busy:
             self._status_text = "Please wait for the current response."
@@ -510,36 +527,26 @@ class MessageComposerViewModel:
             self._status_text = "No file selected."
             return
 
-        # Show lightweight feedback
         self._status_text = "Processing PDF..."
 
         try:
-            # Local imports to avoid hard dependency at module import time
-            from grad_applicant_system.infrastructure.parsing.pdf_document_parser import (
-                PDFDocumentParser,
-            )
-            from grad_applicant_system.infrastructure.parsing.simple_extraction_processor import (
-                SimpleExtractionProcessor,
-            )
+            result = self._pdf_ingestion_service.ingest_pdf(file_path)
 
-            parser = PDFDocumentParser()
-            extractor = SimpleExtractionProcessor()
+            if result.get("status") != "success":
+                message = result.get("message", "Unknown PDF ingestion error.")
+                raise RuntimeError(message)
 
-            text = parser.extract_text(file_path)
-            data = extractor.extract(text)
-            summary_lines = self._build_pdf_summary(file_path, text, data)
+            raw_text = result.get("raw_text", "")
+            data = result.get("data", {})
+            db_result = result.get("db", {})
+            summary_lines = self._build_pdf_summary(
+            file_path=file_path,
+            raw_text=raw_text,
+            extracted_data=data,
+            db_result=db_result,)
 
-            self._transcript.append(
-                TranscriptEntry(role="system", text="\n".join(summary_lines))
-            )
+            self._transcript.append(TranscriptEntry(role="system", text="\n".join(summary_lines)))
             self._status_text = ""
-
-            # Record uploaded file for assistant context
-            try:
-                if file_path and file_path not in self._uploaded_files:
-                    self._uploaded_files.append(file_path)
-            except Exception:
-                pass
 
         except Exception as exc:
             err = f"PDF ingestion failed: {exc}"
@@ -548,10 +555,8 @@ class MessageComposerViewModel:
 
     def ingest_pdfs(self, file_paths: list[str]) -> None:
         """
-        Ingest multiple PDF files sequentially and append summaries to the transcript.
-
-        This method mirrors `ingest_pdf` but accepts a list of file paths.
-        It runs synchronously and reports per-file failures into the transcript.
+        Ingest multiple PDF files sequentially, persist the structured results,
+        and append summaries to the transcript.
         """
         if self._is_busy:
             self._status_text = "Please wait for the current response."
@@ -564,35 +569,28 @@ class MessageComposerViewModel:
         self._status_text = f"Processing {len(file_paths)} PDFs..."
 
         try:
-            from grad_applicant_system.infrastructure.parsing.pdf_document_parser import (
-                PDFDocumentParser,
-            )
-            from grad_applicant_system.infrastructure.parsing.simple_extraction_processor import (
-                SimpleExtractionProcessor,
-            )
+            results = self._pdf_ingestion_service.ingest_pdfs(file_paths)
 
-            parser = PDFDocumentParser()
-            extractor = SimpleExtractionProcessor()
-
-            for file_path in file_paths:
-                try:
-                    text = parser.extract_text(file_path)
-                    data = extractor.extract(text)
-                    summary_lines = self._build_pdf_summary(file_path, text, data)
-
+            for file_path, result in results.items():
+                if result.get("status") != "success":
+                    message = result.get("message", "Unknown PDF ingestion error.")
                     self._transcript.append(
-                        TranscriptEntry(role="system", text="\n".join(summary_lines))
-                    )
+                    TranscriptEntry(
+                        role="system",
+                        text=f"PDF ingestion failed for {file_path}: {message}",))
+                    continue
 
-                    try:
-                        if file_path and file_path not in self._uploaded_files:
-                            self._uploaded_files.append(file_path)
-                    except Exception:
-                        pass
+                raw_text = result.get("raw_text", "")
+                data = result.get("data", {})
+                db_result = result.get("db", {})
+                summary_lines = self._build_pdf_summary(
+                file_path=file_path,
+                raw_text=raw_text,
+                extracted_data=data,
+                db_result=db_result,)
 
-                except Exception as exc:
-                    err = f"PDF ingestion failed for {file_path}: {exc}"
-                    self._transcript.append(TranscriptEntry(role="system", text=err))
+                self._transcript.append(
+                TranscriptEntry(role="system", text="\n".join(summary_lines)))
 
             self._status_text = ""
 
