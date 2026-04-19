@@ -10,21 +10,6 @@ import mysql.connector
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
-from grad_applicant_system.infrastructure.parsing.pdf_ingestion_service import (
-    PdfIngestionService, 
-    PDFDocumentParser, 
-    SimpleExtractionProcessor
-    )
-from grad_applicant_system.infrastructure.persistence import mysql_persistence
-
-parser = PDFDocumentParser()
-extractor = SimpleExtractionProcessor()
-pdf_ingestion_service = PdfIngestionService(parser=parser, extractor=extractor)
-
-mcp = FastMCP("Capstone Sandbox", stateless_http=True, json_response=True)
-
-parser = PDFDocumentParser()
-extractor = SimpleExtractionProcessor()
 
 #######################################################################
 # Ensure environment is configured
@@ -62,6 +47,8 @@ def _db_connect():
 #######################################################################
 # MCP Server
 #######################################################################   
+
+mcp = FastMCP("Capstone Sandbox", stateless_http=True, json_response=True)
 
 def serve() -> None:
     """
@@ -265,8 +252,8 @@ def get_applicant_by_gpa(gpa: Decimal, operator: str) -> dict[str, Any]:
         except Exception:
             pass
 
-
-def get_applicant_by_field(field: str, value: str) -> dict[str: Any]:
+@mcp.tool()
+def get_applicant_by_field(field: str, value: str) -> dict[str, Any]:
     """
     Queries database with a non-GPA field. If user searches with an id, it must be an exact match. 
     If not, values similar to input are allowed.

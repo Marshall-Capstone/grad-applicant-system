@@ -1,11 +1,11 @@
 import asyncio
-from xmlrpc import client
 
 from mcp import ClientSession, types
 from mcp.client.streamable_http import streamable_http_client
 
 
-async def main():
+async def main() -> None:
+    """Smoke test the MCP query tools over streamable HTTP."""
     url = "http://127.0.0.1:8000/mcp"
     print(f"Connecting to {url}")
 
@@ -19,18 +19,10 @@ async def main():
             result = await session.call_tool("list_applicants", arguments={"limit": 5})
             print("structuredContent:", result.structuredContent)
 
-            for c in result.content:
-                if isinstance(c, types.TextContent):
-                    print("textContent:", c.text)
+            for content_item in result.content:
+                if isinstance(content_item, types.TextContent):
+                    print("textContent:", content_item.text)
 
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-result = client.call_tool(
-    "ingest_pdf",
-    {"file_path": "sample.pdf"}
-)
-
-print(result)

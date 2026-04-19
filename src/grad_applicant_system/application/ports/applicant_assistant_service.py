@@ -13,22 +13,16 @@ class AssistantReply:
 
 
 class ApplicantAssistantService(Protocol):
-    """Application-facing port for conversational applicant assistance."""
+    """Application-facing port for conversational applicant assistance.
 
-    def send_message(self, user_message: str, available_files: list[str] | None = None) -> AssistantReply:
-        """Send a user message and return the assistant's reply.
+    Implementations handle chat interactions and may use query tools to answer
+    questions about applicant data already stored in the system.
 
-        available_files:
-            Optional list of file paths that have been uploaded in the UI. If
-            provided, the assistant may choose to call MCP tools (for example
-            `ingest_pdfs`) referencing these paths.
-        """
-        ...
+    PDF ingestion is intentionally not part of this port. Applicant documents
+    are ingested through the dedicated UI upload workflow and persisted before
+    the assistant is asked to query them.
+    """
 
-    def parse_applicant_pdf(self, file_path: str) -> dict:
-        """Parse an applicant PDF and return extracted applicant data."""
-        ...
-
-    def parse_applicant_pdfs(self, file_paths: list[str]) -> dict:
-        """Parse multiple applicant PDFs and return a mapping of file->extracted data."""
+    def send_message(self, user_message: str) -> AssistantReply:
+        """Send a user message and return the assistant's reply."""
         ...
