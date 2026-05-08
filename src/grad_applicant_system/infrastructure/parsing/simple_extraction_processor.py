@@ -5,6 +5,8 @@ from typing import Optional
 
 
 class SimpleExtractionProcessor:
+    PATCH_VERSION = "name-and-decision-fix-2026-05-07"
+
     """
     Convert raw PDF text into structured applicant/application data.
 
@@ -144,36 +146,130 @@ class SimpleExtractionProcessor:
 
         return None
 
+    def _is_probable_person_name(self, value: Optional[str]) -> bool:
+        """
+        Return True if a captured value looks like a real person name rather
+        than a form label, heading, or nearby boilerplate text.
+        """
+        if not value:
+            return False
+
+        value = self._clean(value)
+        if not value:
+            return False
+
+        lowered = value.lower()
+
+        bad_fragments = {
+            "credentials",
+            "evaluation",
+            "decision",
+            "form",
+            "graduate",
+            "admissions",
+            "applicant displayed name",
+            "last name",
+            "term applying",
+            "portal comments",
+            "application fee",
+            "displayed name",
+            "student admission checklist",
+            "marshall university",
+        }
+
+        if any(fragment in lowered for fragment in bad_fragments):
+            return False
+
+        parts = value.split()
+
+        # Most applicant names here should be First Last, First Middle Last,
+        # or occasionally First Middle Middle Last.
+        if not 2 <= len(parts) <= 5:
+            return False
+
+        return all(
+            re.match(r"^[A-Z][A-Za-z'.-]+$", part) is not None
+            for part in parts
+        )
+
+    def _search_probable_name(
+        self,
+        blocks: list[str],
+        patterns: list[str],
+    ) -> Optional[str]:
+        """
+        Search blocks for a name-like value, but keep searching if the first
+        regex match looks like a label/header instead of a real person name.
+        """
+        for block in blocks:
+            if not block:
+                continue
+
+            for pattern in patterns:
+                match = re.search(pattern, block, re.IGNORECASE | re.DOTALL)
+                if not match:
+                    continue
+
+                value = self._clean(match.group(1))
+
+                if self._is_probable_person_name(value):
+                    return value
+
+        return None
+
     def _extract_name(self, pages: dict[int, str], full_text: str) -> Optional[str]:
         """
         Extract the applicant's name.
 
         Strategy:
-        - Prefer page 1, where the form's populated value cluster often appears.
-        - Fall back to transcript / application detail pages if needed.
+        1. Prefer explicit labels such as "Applicant's Name:" and checklist "NAME:".
+        2. Fall back to education-history / transcript-style identifiers.
+        3. Fall back to the original filled packet pattern: Name + Term.
         """
         page_one = pages.get(1, "")
+        checklist_page = pages.get(3, "")
 
-        value = self._search(
-            [page_one],
+        # Use [ \t] instead of \s inside the name pattern so the capture does
+        # not accidentally cross into the next label on another line.
+        name_pattern = r"[A-Z][A-Za-z'.-]+(?:[ \t]+[A-Z][A-Za-z'.-]+){1,4}"
+
+        # Strong labeled patterns first. These are safest for the generated
+        # synthetic demo packets.
+        value = self._search_probable_name(
+            [page_one, checklist_page],
             [
-                r"\b([A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+)+)\s+(?:Fall|Spring|Summer)\s+\d{4}\b",
-                r"\bApplicant\s+([A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+)+)\b",
+                rf"Applicant[’']s\s+Name:\s*\n+\s*({name_pattern})\b",
+                rf"\bNAME:\s*\n+\s*({name_pattern})\b",
             ],
         )
-
-        # Guard against obvious label-like false positives.
-        if value and value not in {"Other Suffix", "Last Name Preferred First Name"}:
+        if value:
             return value
 
-        # Stronger fallback from transcript / education history pages.
-        return self._search(
+        # Education-history / transcript fallback. This keeps compatibility
+        # with filled_test_application_packet_final.pdf, where the name appears
+        # reliably near EDU/applicant records.
+        value = self._search_probable_name(
             [pages.get(6, ""), pages.get(5, ""), full_text],
             [
-                r"\bApplicant\s+([A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+)+)\b",
-                r"\bEDU-\d+\s+([A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+)+)\b",
+                rf"\bEDU-\d+\s+({name_pattern})\b",
+                rf"\bApplicant\s+({name_pattern})\b",
             ],
         )
+        if value:
+            return value
+
+        # Original packet fallback: populated cluster where the applicant name
+        # appears near the term, e.g. "Alexander Leonard Summer 2025".
+        value = self._search_probable_name(
+            [page_one],
+            [
+                rf"\b({name_pattern})\s+(?:Fall|Spring|Summer)\s+\d{{4}}\b",
+            ],
+        )
+        if value:
+            return value
+
+        return None
 
     def _extract_email(self, pages: dict[int, str], full_text: str) -> Optional[str]:
         """
@@ -337,22 +433,92 @@ class SimpleExtractionProcessor:
         """
         Infer the admission decision from page 1.
 
-        Important:
-        - This form always contains boilerplate option labels for both
-          'Conditional Admission' and 'Denial of Admission'.
-        - We therefore avoid interpreting those labels alone as a real
-          decision.
-        - For now, we only emit 'Conditional' when there are supporting
-          signals in the filled value cluster.
+        This version supports:
+        - selected marker format, e.g. X Full Admission
+        - selected marker on its own line before the decision label
+        - original filled packet's Conditional signal
+        - cautious reason-text fallbacks for generated demo packets
         """
         page_one = pages.get(1, "")
 
-        if re.search(r"Conditional Admission", page_one, re.IGNORECASE):
-            if re.search(r"Degree not related to CS", page_one, re.IGNORECASE) and re.search(
-                r"Dr\.\s+[A-Z]",
-                page_one,
-                re.IGNORECASE,
-            ):
+        def normalize_decision(value: str) -> Optional[str]:
+            lowered = value.lower()
+
+            if lowered.startswith("full"):
+                return "Full"
+            if lowered.startswith("provisional"):
+                return "Provisional"
+            if lowered.startswith("conditional"):
                 return "Conditional"
+            if lowered.startswith("denial") or lowered.startswith("denied"):
+                return "Denied"
+
+            return None
+
+        # Case 1: marker appears on its own line, followed by the selected option.
+        # Example:
+        # Decision
+        # X
+        # Full Admission
+        lines = [line.strip() for line in page_one.splitlines() if line.strip()]
+        markers = {"X", "x", "✔", "☑", "■", "✓"}
+        option_pattern = re.compile(
+            r"^(Full|Provisional|Conditional|Denial)\s+Admission\b",
+            re.IGNORECASE,
+        )
+
+        for index, line in enumerate(lines):
+            if line in markers:
+                for next_line in lines[index + 1 : index + 5]:
+                    match = option_pattern.search(next_line)
+                    if match:
+                        return normalize_decision(match.group(1))
+
+        # Case 2: marker appears directly before the option in flattened text.
+        # Example: X Full Admission
+        match = re.search(
+            r"(?:Decision\s*)?"
+            r"(?:X|x|✔|☑|■|✓)\s*"
+            r"(Full|Provisional|Conditional|Denial)\s+Admission\b",
+            page_one,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if match:
+            return normalize_decision(match.group(1))
+
+        # Case 3: original filled test packet. The checkmark is not adjacent to
+        # the decision label, but the reason text strongly identifies Conditional.
+        if re.search(r"Degree not related to CS", page_one, re.IGNORECASE) and re.search(
+            r"Dr\.\s+[A-Z]",
+            page_one,
+            re.IGNORECASE,
+        ):
+            return "Conditional"
+
+        # Case 4: cautious reason-text fallbacks for synthetic/demo packets.
+        if re.search(
+            r"Final transcript is missing|Missing:\s*Final Transcript",
+            page_one,
+            re.IGNORECASE,
+        ):
+            return "Conditional"
+
+        if re.search(
+            r"does not meet one academic standard|monitor progress through 12 graduate credit hours",
+            page_one,
+            re.IGNORECASE,
+        ):
+            return "Provisional"
+
+        if re.search(
+            r"submitted all required credentials and meets all standards",
+            page_one,
+            re.IGNORECASE,
+        ) and re.search(
+            r"Applicant[’']s\s+Name:\s*\n",
+            page_one,
+            re.IGNORECASE,
+        ):
+            return "Full"
 
         return None

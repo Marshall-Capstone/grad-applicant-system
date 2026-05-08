@@ -131,7 +131,7 @@ class MessageComposerViewModel:
         # - the full assistant response still arrives all at once
         # - the ViewModel reveals it gradually over subsequent frames
         # - the UI remains responsive because reveal happens in update()
-        self._reveal_chars_per_second = 90.0
+        self._reveal_chars_per_second = 320.0
         self._active_reveal_text: str | None = None
         self._active_reveal_entry_index: int | None = None
         self._revealed_char_count = 0

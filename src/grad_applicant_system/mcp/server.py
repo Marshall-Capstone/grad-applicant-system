@@ -315,6 +315,122 @@ def get_applicant_by_field(field: str, value: str) -> dict[str, Any]:
         except Exception:
             pass
 
+@mcp.tool()
+def get_recent_applicants(limit: int = 10) -> dict[str, Any]:
+    """
+    Return the most recently added applicants by descending UserID.
+
+    Use this when the user asks for recently added applicants, latest applicants,
+    newly uploaded applicants, or the last N applicants added to the system.
+    """
+    conn = _db_connect()
+
+    try:
+        cur = conn.cursor(dictionary=True)
+
+        cur.execute(
+            """
+            SELECT
+                a.UserID AS user_id,
+                a.ApplicantName AS applicant_name,
+                a.UndergraduateGPA AS undergraduate_gpa,
+                a.DegreeEarned AS degree_earned,
+                p.ProgramMajor AS program_major,
+                app.TermApplyingFor AS term_applying_for,
+                app.AdmissionDecision AS admission_decision,
+                adv.AdvisorName AS advisor_name
+            FROM Applicant a
+            LEFT JOIN Application app ON a.UserID = app.UserID
+            LEFT JOIN Program p ON app.ProgramID = p.ProgramID
+            LEFT JOIN Advisor adv ON app.AdvisorID = adv.AdvisorID
+            ORDER BY a.UserID DESC
+            LIMIT %s
+            """,
+            (int(limit),),
+        )
+
+        rows = cur.fetchall()
+
+        return {
+            "count": len(rows),
+            "rows": [_jsonify_row(row) for row in rows],
+        }
+
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@mcp.tool()
+def summarize_applicants() -> dict[str, Any]:
+    """
+    Return a high-level summary of the applicant pool.
+
+    Includes:
+    - total applicants
+    - GPA summary
+    - counts by admission decision
+    - counts by program
+    """
+    conn = _db_connect()
+
+    try:
+        cur = conn.cursor(dictionary=True)
+
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) AS total_applicants,
+                AVG(UndergraduateGPA) AS average_gpa,
+                MIN(UndergraduateGPA) AS minimum_gpa,
+                MAX(UndergraduateGPA) AS maximum_gpa
+            FROM Applicant
+            """
+        )
+        overview_row = cur.fetchone() or {}
+        overview = _jsonify_row(overview_row)
+
+        cur.execute(
+            """
+            SELECT
+                COALESCE(app.AdmissionDecision, 'Unknown') AS admission_decision,
+                COUNT(*) AS count
+            FROM Applicant a
+            LEFT JOIN Application app ON a.UserID = app.UserID
+            GROUP BY COALESCE(app.AdmissionDecision, 'Unknown')
+            ORDER BY count DESC, admission_decision
+            """
+        )
+        decision_counts = [_jsonify_row(row) for row in cur.fetchall()]
+
+        cur.execute(
+            """
+            SELECT
+                COALESCE(p.ProgramMajor, 'Unknown') AS program_major,
+                COUNT(*) AS count
+            FROM Applicant a
+            LEFT JOIN Application app ON a.UserID = app.UserID
+            LEFT JOIN Program p ON app.ProgramID = p.ProgramID
+            GROUP BY COALESCE(p.ProgramMajor, 'Unknown')
+            ORDER BY count DESC, program_major
+            """
+        )
+        program_counts = [_jsonify_row(row) for row in cur.fetchall()]
+
+        return {
+            "overview": overview,
+            "decision_counts": decision_counts,
+            "program_counts": program_counts,
+        }
+
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
 
 if __name__ == "__main__":
     serve()
